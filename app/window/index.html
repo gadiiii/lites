@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>lites</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
+      background: #0d0d0d;
+      color: #e8e8e8;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      user-select: none;
+      -webkit-app-region: drag;
+    }
+
+    /* Title bar drag region */
+    .titlebar {
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      -webkit-app-region: drag;
+    }
+
+    .titlebar-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: #555;
+      letter-spacing: 0.06em;
+    }
+
+    /* Status banner */
+    .status-banner {
+      padding: 10px 16px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      text-align: center;
+      flex-shrink: 0;
+      transition: background 0.3s;
+    }
+
+    .status-banner.starting { background: #2a2000; color: #cc9900; }
+    .status-banner.running  { background: #0a1f0a; color: #4caf50; }
+    .status-banner.stopped  { background: #200a0a; color: #c0392b; }
+    .status-banner.error    { background: #1f0a0a; color: #e74c3c; }
+
+    /* Main content */
+    .content {
+      flex: 1;
+      padding: 14px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      overflow: hidden;
+      -webkit-app-region: no-drag;
+    }
+
+    /* URL section */
+    .url-section {
+      background: #161616;
+      border: 1px solid #2a2a2a;
+      border-radius: 8px;
+      padding: 10px 12px;
+    }
+
+    .url-label {
+      font-size: 9px;
+      color: #555;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      margin-bottom: 5px;
+      font-family: 'SF Mono', monospace;
+    }
+
+    .url-value {
+      font-size: 13px;
+      font-family: 'SF Mono', monospace;
+      color: #b7ff00;
+      text-decoration: none;
+      word-break: break-all;
+      cursor: pointer;
+    }
+
+    .url-value:hover { text-decoration: underline; }
+
+    .url-hint {
+      font-size: 9px;
+      color: #444;
+      margin-top: 4px;
+    }
+
+    /* Buttons row */
+    .btn-row {
+      display: flex;
+      gap: 8px;
+    }
+
+    button {
+      flex: 1;
+      padding: 8px 10px;
+      border: none;
+      border-radius: 8px;
+      font-family: inherit;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+
+    button:active { opacity: 0.75; }
+    button:disabled { opacity: 0.35; cursor: not-allowed; }
+
+    .btn-primary {
+      background: #b7ff00;
+      color: #000;
+    }
+
+    .btn-secondary {
+      background: #1e1e1e;
+      color: #aaa;
+      border: 1px solid #333;
+    }
+
+    /* USB scan results */
+    .usb-section {
+      background: #111;
+      border: 1px solid #222;
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 11px;
+      font-family: 'SF Mono', monospace;
+      color: #555;
+      min-height: 40px;
+      flex: 1;
+      overflow-y: auto;
+    }
+
+    .usb-port {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 0;
+      color: #888;
+      font-size: 10px;
+    }
+
+    .usb-port.recommended { color: #4caf50; }
+
+    .usb-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #333;
+      flex-shrink: 0;
+    }
+
+    .usb-dot.recommended { background: #4caf50; }
+
+    .usb-empty {
+      color: #444;
+      font-size: 10px;
+      padding: 4px 0;
+    }
+
+    /* Footer */
+    .footer {
+      padding: 8px 18px;
+      border-top: 1px solid #1a1a1a;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+      -webkit-app-region: no-drag;
+    }
+
+    .footer-version {
+      font-size: 9px;
+      color: #333;
+      font-family: 'SF Mono', monospace;
+    }
+
+    .btn-hide {
+      font-size: 9px;
+      padding: 3px 10px;
+      background: none;
+      border: 1px solid #2a2a2a;
+      border-radius: 4px;
+      color: #444;
+      flex: 0;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="titlebar">
+    <span class="titlebar-title">lites</span>
+  </div>
+
+  <div class="status-banner starting" id="statusBanner">Starting…</div>
+
+  <div class="content">
+    <!-- URL display -->
+    <div class="url-section" id="urlSection" style="display:none">
+      <div class="url-label">Admin URL</div>
+      <a class="url-value" id="urlLink" href="#" onclick="window.lites.launchBrowser(); return false;">—</a>
+      <div class="url-hint" id="urlHint"></div>
+    </div>
+
+    <!-- Action buttons -->
+    <div class="btn-row">
+      <button class="btn-primary" id="btnLaunch" disabled onclick="window.lites.launchBrowser()">
+        Launch GUI
+      </button>
+      <button class="btn-secondary" id="btnScan" onclick="scanUsb()">
+        Scan USB
+      </button>
+    </div>
+
+    <!-- USB scan results -->
+    <div class="usb-section" id="usbSection">
+      <div class="usb-empty">Click "Scan USB" to detect ENTTEC devices</div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span class="footer-version">lites v1.0</span>
+    <button class="btn-hide" onclick="window.lites.hideWindow()">Hide ✕</button>
+  </div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>

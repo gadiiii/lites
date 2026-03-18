@@ -1,0 +1,14 @@
+{
+  "name": "@lites/shared",
+  "version": "1.0.0",
+  "private": true,
+  "main": "./dist/protocol.js",
+  "types": "./dist/protocol.d.ts",
+  "scripts": {
+    "build": "tsc --build",
+    "dev": "tsc --watch"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3"
+  }
+}

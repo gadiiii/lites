@@ -1,0 +1,105 @@
+{
+  "profiles": {
+    "RGB_D": {
+      "id": "RGB_D",
+      "name": "RGB + Dimmer",
+      "channelCount": 4,
+      "params": {
+        "dimmer": 0,
+        "red": 1,
+        "green": 2,
+        "blue": 3
+      }
+    },
+    "chauvet_slimpar_t12bt": {
+      "id": "chauvet_slimpar_t12bt",
+      "name": "Chauvet SlimPAR T12 BT (7ch)",
+      "channelCount": 7,
+      "params": {
+        "red": 0,
+        "green": 1,
+        "blue": 2,
+        "strobe": 3,
+        "auto": 4,
+        "speed": 5,
+        "dimmer": 6
+      }
+    }
+  },
+  "fixtures": {
+    "wash1": {
+      "id": "wash1",
+      "name": "Wash 1",
+      "address": 1,
+      "profileId": "chauvet_slimpar_t12bt"
+    },
+    "wash2": {
+      "id": "wash2",
+      "name": "Wash 2",
+      "address": 10,
+      "profileId": "chauvet_slimpar_t12bt"
+    },
+    "wash3": {
+      "id": "wash3",
+      "name": "Wash 3",
+      "address": 19,
+      "profileId": "chauvet_slimpar_t12bt"
+    }
+  },
+  "fixtureParams": {
+    "wash1": {
+      "dimmer": 0,
+      "red": 0,
+      "green": 0,
+      "blue": 0,
+      "strobe": 0,
+      "auto": 0,
+      "speed": 0
+    },
+    "wash2": {
+      "dimmer": 0,
+      "red": 0,
+      "green": 0,
+      "blue": 0,
+      "strobe": 0,
+      "auto": 0,
+      "speed": 0
+    },
+    "wash3": {
+      "dimmer": 0,
+      "red": 0,
+      "green": 0,
+      "blue": 0,
+      "strobe": 0,
+      "auto": 0,
+      "speed": 0
+    }
+  },
+  "fixturePositions": {
+    "wash1": {
+      "x": 120,
+      "y": 300
+    },
+    "wash2": {
+      "x": 400,
+      "y": 300
+    },
+    "wash3": {
+      "x": 784,
+      "y": 232
+    }
+  },
+  "blackout": false,
+  "masterDimmer": 255,
+  "presets": {},
+  "effectTemplates": [],
+  "effectInstances": [],
+  "cuelists": {},
+  "cuelistPlayback": {},
+  "simplePageConfig": {
+    "title": "Performer View",
+    "columns": 3,
+    "tiles": []
+  },
+  "$schema": "lites-show-v1"
+}

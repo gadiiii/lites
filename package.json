@@ -1,0 +1,24 @@
+{
+  "name": "lites",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "shared",
+    "server",
+    "client"
+  ],
+  "scripts": {
+    "dev": "concurrently -n server,client -c cyan,magenta \"npm run dev -w server\" \"npm run dev -w client\"",
+    "build": "npm run build -w shared && npm run build -w server && npm run build -w client",
+    "start": "node server/dist/index.js",
+    "clean": "rm -rf server/dist client/dist shared/dist app/dist",
+    "app": "npm run build -w shared && npm run build -w server && npm --prefix app run dev",
+    "dist": "npm run build && npm --prefix app run dist",
+    "dist:mac": "npm run build && npm --prefix app run dist:mac",
+    "dist:linux": "npm run build && npm --prefix app run dist:linux",
+    "dist:win": "npm run build && npm --prefix app run dist:win"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

@@ -1,0 +1,32 @@
+## Dependencies
+node_modules/
+
+## Build output
+dist/
+app/dist/
+app/release/
+
+## Source maps
+*.js.map
+
+## Environment
+.env
+*.tmp
+
+## macOS
+.DS_Store
+.AppleDouble
+
+## Editors
+.vscode/settings.json
+.idea/
+
+## Logs
+*.log
+npm-debug.log*
+
+## TypeScript incremental build info
+*.tsbuildinfo
+
+## Claude Code project files
+.claude/
