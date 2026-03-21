@@ -184,6 +184,19 @@ export async function startServer(overrides?: { port?: number; serialPort?: stri
             mfr.includes('dmx')
           );
         });
+
+        // On Linux, check if each recommended port is actually accessible
+        // (users must be in the 'dialout' group to open /dev/ttyUSB* devices)
+        if (process.platform === 'linux') {
+          for (const p of recommended as (typeof recommended[0] & { permissionError?: boolean })[]) {
+            try {
+              fs.accessSync(p.path, fs.constants.R_OK | fs.constants.W_OK);
+            } catch {
+              p.permissionError = true;
+            }
+          }
+        }
+
         sendJson(res, 200, { ports, recommended });
       } catch (e) {
         sendJson(res, 500, { ports: [], recommended: [], error: String(e) });

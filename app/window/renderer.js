@@ -59,21 +59,43 @@ async function scanUsb() {
     return;
   }
 
+  const isLinux = window.lites.platform === 'linux';
+
+  // Check if any recommended port has a permission error
+  const hasPermError = (result.recommended || []).some(p => p.permissionError);
+
   if (!result.ports || result.ports.length === 0) {
-    usbSection.innerHTML = '<div class="usb-empty">No serial ports found</div>';
+    if (isLinux) {
+      usbSection.innerHTML = `
+        <div class="usb-empty" style="color:#e74c3c">No serial ports found.</div>
+        <div class="usb-empty" style="margin-top:6px">On Linux, plug in the ENTTEC device <em>then</em> run:</div>
+        <div class="usb-empty" style="color:#b7ff00;margin-top:4px;font-size:10px">sudo usermod -aG dialout $USER</div>
+        <div class="usb-empty" style="margin-top:4px">Log out and back in, then scan again.</div>`;
+    } else {
+      usbSection.innerHTML = '<div class="usb-empty">No serial ports found</div>';
+    }
     return;
   }
 
   const recPaths = new Set((result.recommended || []).map(r => r.path));
 
-  usbSection.innerHTML = result.ports.map(p => {
+  let html = result.ports.map(p => {
     const rec = recPaths.has(p.path);
+    const perm = p.permissionError ? ' ⚠ no access' : '';
     const label = p.manufacturer ? `${p.path} — ${p.manufacturer}` : p.path;
     return `<div class="usb-port ${rec ? 'recommended' : ''}">
       <div class="usb-dot ${rec ? 'recommended' : ''}"></div>
-      <span>${label}${rec ? ' ✓' : ''}</span>
+      <span>${label}${rec ? ' ✓' : ''}${perm}</span>
     </div>`;
   }).join('');
+
+  if (isLinux && hasPermError) {
+    html += `<div class="usb-empty" style="color:#e74c3c;margin-top:8px">⚠ Permission denied on device.</div>
+      <div class="usb-empty" style="margin-top:4px">Run this, then log out and back in:</div>
+      <div class="usb-empty" style="color:#b7ff00;font-size:10px;margin-top:4px">sudo usermod -aG dialout $USER</div>`;
+  }
+
+  usbSection.innerHTML = html;
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────

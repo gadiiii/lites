@@ -30,6 +30,9 @@ interface ServerStatus {
 }
 
 contextBridge.exposeInMainWorld('lites', {
+  /** Current OS platform ('darwin' | 'linux' | 'win32') */
+  platform: process.platform,
+
   /** Get current server status */
   getStatus: (): Promise<ServerStatus> =>
     ipcRenderer.invoke('get-status'),
