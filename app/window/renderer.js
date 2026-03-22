@@ -78,10 +78,11 @@ async function scanUsb() {
   }
 
   const recPaths = new Set((result.recommended || []).map(r => r.path));
+  const permErrorPaths = new Set((result.recommended || []).filter(r => r.permissionError).map(r => r.path));
 
   let html = result.ports.map(p => {
     const rec = recPaths.has(p.path);
-    const perm = p.permissionError ? ' ⚠ no access' : '';
+    const perm = permErrorPaths.has(p.path) ? ' ⚠ no access' : '';
     const label = p.manufacturer ? `${p.path} — ${p.manufacturer}` : p.path;
     return `<div class="usb-port ${rec ? 'recommended' : ''}">
       <div class="usb-dot ${rec ? 'recommended' : ''}"></div>
