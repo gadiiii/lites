@@ -4,16 +4,19 @@
  * Boot sequence:
  *   1.  Load config (env vars / .env file)
  *   2.  Load show state from disk
- *   3.  Initialise DMX engine
- *   4.  Open ENTTEC serial port (non-fatal if missing)
+ *   3.  Create DMX output driver (pluggable: ENTTEC USB, Art-Net, sACN, Null)
+ *   4.  Init DMX engine + open output driver
  *   5.  Init patch + hydrate universe
  *   6.  Init effects engine + register tick processor
  *   7.  Init cuelist engine + register tick processor
- *   8.  Create HTTP server (serves client/dist in production)
- *   9.  Attach WebSocket server
- *  10.  Find a free port and start listening
- *  11.  Print LAN access URLs
- *  12.  Start DMX tick loop
+ *   8.  Init timeline engine + register tick processor
+ *   9.  Init MIDI engine
+ *  10.  Init OSC server
+ *  11.  Create HTTP server (serves client/dist in production)
+ *  12.  Attach WebSocket server
+ *  13.  Find a free port and start listening
+ *  14.  Print LAN access URLs
+ *  15.  Start DMX tick loop
  *
  * Exported `startServer()` is used by the Electron app wrapper.
  * CLI self-execution is preserved for `npm start` / `node dist/index.js`.
@@ -30,9 +33,13 @@ import { Patch } from './patch.js';
 import { Persistence } from './persistence.js';
 import { EffectsEngine } from './effectsEngine.js';
 import { CuelistEngine } from './cuelistEngine.js';
+import { TimelineEngine } from './timelineEngine.js';
+import { MidiEngine } from './midi.js';
+import { OscServer } from './osc.js';
 import { WsServer } from './websocket.js';
 import { Auth } from './auth.js';
 import { searchFixtures, fetchFixture } from './oflProxy.js';
+import { createOutput } from './output/factory.js';
 
 // ── Port discovery ────────────────────────────────────────────────────────────
 
@@ -86,19 +93,15 @@ function readBody(req: http.IncomingMessage): Promise<string> {
 
 export interface ServerInstance {
   port: number;
-  /** First LAN IP + port, e.g. "http://192.168.1.42:3000". Falls back to localhost. */
   serverUrl: string;
-  /** All LAN URLs for display */
   lanUrls: string[];
-  /** Clean shutdown: blackout → flush show → close WS → close HTTP */
   shutdown: () => Promise<void>;
 }
 
 export async function startServer(overrides?: { port?: number; serialPort?: string }): Promise<ServerInstance> {
-  console.log('[Boot] Starting lites server…');
-  console.log(`[Boot] Config: fps=${config.dmxFps}, serial=${overrides?.serialPort ?? config.serialPort}`);
+  console.log('[Boot] Starting lites v2 server…');
   if (config.adminPassword) {
-    console.log('[Boot] Auth: ENABLED (ADMIN_PASSWORD is set)');
+    console.log('[Boot] Auth: ENABLED');
   } else {
     console.log('[Boot] Auth: DISABLED (set ADMIN_PASSWORD in .env to enable)');
   }
@@ -110,32 +113,77 @@ export async function startServer(overrides?: { port?: number; serialPort?: stri
   const persistence = new Persistence(config.showFilePath);
   const showState = await persistence.load();
 
-  // ── 3. Init DMX engine ───────────────────────────────────────────────────────
-  const engine = new DmxEngine(config.dmxFps);
-  await engine.open(overrides?.serialPort ?? config.serialPort);
+  // ── 3. Create output driver ───────────────────────────────────────────────────
+  const savedDriverCfg = showState.outputDriverConfig;
+  const driverCfg = {
+    ...savedDriverCfg,
+    // CLI override takes precedence over saved config
+    ...(overrides?.serialPort ? { serialPort: overrides.serialPort } : {}),
+  };
+  // Env var OUTPUT_DRIVER overrides saved driver type
+  if (config.outputDriver !== 'enttec-usb' || !savedDriverCfg.driver) {
+    driverCfg.driver = config.outputDriver;
+  }
+  const output = createOutput(driverCfg);
 
-  // ── 4. Init patch + hydrate universe ─────────────────────────────────────────
+  // ── 4. Init DMX engine ───────────────────────────────────────────────────────
+  const engine = new DmxEngine(config.dmxFps, output);
+  await engine.openOutput();
+
+  // ── 5. Init patch + hydrate universe ─────────────────────────────────────────
   const patch = new Patch(engine);
   patch.init(showState);
   engine.setMasterDimmer(showState.masterDimmer ?? 255);
 
-  // ── 5. Init effects engine ───────────────────────────────────────────────────
+  // ── 6. Init effects engine ───────────────────────────────────────────────────
   const effectsEngine = new EffectsEngine(patch);
   effectsEngine.init(showState.effectInstances ?? []);
   engine.registerTickProcessor((now) => effectsEngine.tick(now));
 
-  // ── 6. Init cuelist engine ───────────────────────────────────────────────────
-  // shutdown is declared here (before httpServer) so the API handler can reference it.
-  // It is assigned below after all dependencies are ready.
-  let shutdown!: () => Promise<void>;
+  // Need forward reference for wsServer used in engine callbacks
   let wsServer: WsServer;
+
+  // ── 7. Init cuelist engine ────────────────────────────────────────────────────
   const cuelistEngine = new CuelistEngine(patch, (_cuelists, _playback) => {
     wsServer?.broadcastCuelistUpdate();
   });
   cuelistEngine.init(showState.cuelists ?? {});
   engine.registerTickProcessor((now) => cuelistEngine.tick(now));
 
-  // ── 7. HTTP server ───────────────────────────────────────────────────────────
+  // ── 8. Init timeline engine ───────────────────────────────────────────────────
+  const timelineEngine = new TimelineEngine(patch, (_timelines, _playback) => {
+    wsServer?.broadcastTimelinesUpdate();
+  });
+  timelineEngine.init(showState.timelines ?? {});
+  engine.registerTickProcessor((now) => timelineEngine.tick(now));
+
+  // ── 9. Init MIDI engine ───────────────────────────────────────────────────────
+  const midiEngine = new MidiEngine(
+    showState.midiMappings ?? [],
+    patch,
+    (mappings) => wsServer?.broadcastMidiMappings(mappings),
+    (ports, activePort) => wsServer?.broadcastMidiPorts(ports, activePort),
+    (mappingId) => wsServer?.broadcastMidiLearn(mappingId)
+  );
+  await midiEngine.init();
+
+  // Wire action callbacks for MIDI targets
+  midiEngine.registerPresetCallback((presetId) => wsServer?.recallPresetById(presetId));
+  midiEngine.registerBlackoutCallback(() => wsServer?.toggleBlackout());
+  midiEngine.registerCueGoCallback((cuelistId) => cuelistEngine.go(cuelistId));
+
+  // ── 10. Init OSC server ───────────────────────────────────────────────────────
+  const oscServer = new OscServer(showState.oscConfig ?? { enabled: false, port: config.oscPort }, patch);
+  oscServer.registerPresetCallback((presetId) => wsServer?.recallPresetById(presetId));
+  oscServer.registerBlackoutCallback(() => wsServer?.toggleBlackout());
+  oscServer.registerMasterDimmerCallback((v) => {
+    engine.setMasterDimmer(v);
+    wsServer?.broadcastMasterDimmer(v);
+  });
+  oscServer.registerCueGoCallback((cuelistId) => cuelistEngine.go(cuelistId));
+  await oscServer.start();
+
+  // ── 11. HTTP server ───────────────────────────────────────────────────────────
   const clientDist = path.resolve(__dirname, 'public');
 
   const httpServer = http.createServer(async (req, res) => {
@@ -143,7 +191,6 @@ export async function startServer(overrides?: { port?: number; serialPort?: stri
     const url = new URL(urlPath, 'http://x');
     const pathname = url.pathname;
 
-    // ── API: Auth ─────────────────────────────────────────────────────────────
     if (req.method === 'POST' && pathname === '/api/auth/login') {
       try {
         const body = await readBody(req);
@@ -160,14 +207,12 @@ export async function startServer(overrides?: { port?: number; serialPort?: stri
       return;
     }
 
-    // ── API: Auth check ───────────────────────────────────────────────────────
     if (req.method === 'GET' && pathname === '/api/auth/check') {
       const token = (req.headers['authorization'] ?? '').replace('Bearer ', '');
       sendJson(res, auth.isValid(token) ? 200 : 401, { ok: auth.isValid(token), authEnabled: auth.enabled });
       return;
     }
 
-    // ── API: List serial ports (for Electron scan-usb) ───────────────────────
     if (req.method === 'GET' && pathname === '/api/ports') {
       try {
         const { SerialPort } = await import('serialport');
@@ -185,8 +230,6 @@ export async function startServer(overrides?: { port?: number; serialPort?: stri
           );
         });
 
-        // On Linux, check if each recommended port is actually accessible
-        // (users must be in the 'dialout' group to open /dev/ttyUSB* devices)
         if (process.platform === 'linux') {
           for (const p of recommended as (typeof recommended[0] & { permissionError?: boolean })[]) {
             try {
@@ -204,7 +247,6 @@ export async function startServer(overrides?: { port?: number; serialPort?: stri
       return;
     }
 
-    // ── API: OFL Search ───────────────────────────────────────────────────────
     if (req.method === 'GET' && pathname === '/api/ofl/search') {
       const q = url.searchParams.get('q') ?? '';
       try {
@@ -216,8 +258,6 @@ export async function startServer(overrides?: { port?: number; serialPort?: stri
       return;
     }
 
-    // ── API: Shutdown server ──────────────────────────────────────────────────
-    // Zeros all DMX channels, flushes show state, then exits.
     if (req.method === 'POST' && pathname === '/api/shutdown') {
       sendJson(res, 200, { ok: true, message: 'Server shutting down…' });
       setTimeout(() => {
@@ -226,9 +266,6 @@ export async function startServer(overrides?: { port?: number; serialPort?: stri
       return;
     }
 
-    // ── API: System (OS) shutdown ─────────────────────────────────────────────
-    // Disabled unless ALLOW_SYSTEM_SHUTDOWN=true is set in the environment.
-    // Zeros DMX then runs the OS shutdown command (platform-specific).
     if (req.method === 'POST' && pathname === '/api/system-shutdown') {
       if (process.env.ALLOW_SYSTEM_SHUTDOWN !== 'true') {
         sendJson(res, 403, { error: 'System shutdown not enabled. Set ALLOW_SYSTEM_SHUTDOWN=true in .env to enable.' });
@@ -238,9 +275,7 @@ export async function startServer(overrides?: { port?: number; serialPort?: stri
       setTimeout(async () => {
         await shutdown();
         const { exec } = await import('child_process');
-        const cmd = process.platform === 'win32'
-          ? 'shutdown /s /t 3'
-          : 'shutdown -h now';
+        const cmd = process.platform === 'win32' ? 'shutdown /s /t 3' : 'shutdown -h now';
         exec(cmd, (err) => {
           if (err) console.error('[Boot] System shutdown command failed:', err.message);
           process.exit(0);
@@ -249,7 +284,6 @@ export async function startServer(overrides?: { port?: number; serialPort?: stri
       return;
     }
 
-    // ── API: OFL Fixture ──────────────────────────────────────────────────────
     if (req.method === 'GET' && pathname === '/api/ofl/fixture') {
       const key = url.searchParams.get('key') ?? '';
       if (!key) { sendJson(res, 400, { error: 'Missing key' }); return; }
@@ -266,13 +300,9 @@ export async function startServer(overrides?: { port?: number; serialPort?: stri
       return;
     }
 
-    // ── Static file serving ───────────────────────────────────────────────────
     if (!fs.existsSync(clientDist)) {
       res.writeHead(200, { 'Content-Type': 'text/plain' });
-      res.end(
-        'lites server running.\n' +
-        'Run "npm run build" to build the client, or use "npm run dev" for development.\n'
-      );
+      res.end('lites server running.\nRun "npm run build" to build the client.\n');
       return;
     }
 
@@ -287,21 +317,17 @@ export async function startServer(overrides?: { port?: number; serialPort?: stri
       '.json': 'application/json',
     };
 
-    // /simple → serve simple.html
     const serveSimple = pathname === '/simple' || pathname === '/simple/';
     let filePath: string;
     if (serveSimple) {
       filePath = path.join(clientDist, 'simple.html');
     } else {
-      const stripped = pathname === '/' || !path.extname(pathname)
-        ? '/index.html'
-        : pathname;
+      const stripped = pathname === '/' || !path.extname(pathname) ? '/index.html' : pathname;
       filePath = path.join(clientDist, stripped);
     }
 
     fs.readFile(filePath, (err, data) => {
       if (err) {
-        // SPA fallback for any unresolved route → index.html
         fs.readFile(path.join(clientDist, 'index.html'), (e2, html) => {
           if (e2) { res.writeHead(404); res.end('Not found'); }
           else { res.writeHead(200, { 'Content-Type': 'text/html' }); res.end(html); }
@@ -314,13 +340,14 @@ export async function startServer(overrides?: { port?: number; serialPort?: stri
     });
   });
 
-  // ── 8. WebSocket server ───────────────────────────────────────────────────────
+  // ── 12. WebSocket server ──────────────────────────────────────────────────────
   wsServer = new WsServer(
     httpServer, engine, patch, persistence,
-    effectsEngine, cuelistEngine, showState, auth
+    effectsEngine, cuelistEngine, timelineEngine, midiEngine, oscServer,
+    showState, auth
   );
 
-  // ── 9. Find free port + listen ────────────────────────────────────────────────
+  // ── 13. Find free port + listen ───────────────────────────────────────────────
   const startPort = overrides?.port ?? config.wsPort;
   const port = await findFreePort(startPort);
   if (port !== startPort) {
@@ -345,18 +372,20 @@ export async function startServer(overrides?: { port?: number; serialPort?: stri
     console.log(`[Boot]   http://localhost:${port}`);
   }
 
-  // ── 10. Start DMX tick ────────────────────────────────────────────────────────
+  // ── 14. Start DMX tick ────────────────────────────────────────────────────────
   engine.startTick();
 
-  // ── 11. Shutdown function (no process.exit — caller decides) ──────────────────
-  // NOTE: `shutdown` was declared above (let shutdown!) so the HTTP handler can call it.
+  // ── 15. Shutdown function ─────────────────────────────────────────────────────
+  let shutdown!: () => Promise<void>;
   shutdown = async (): Promise<void> => {
     console.log('[Boot] Shutting down…');
-    engine.close();          // stops tick, sends blackout frame, closes serial
+    engine.close();
+    midiEngine.close();
+    await oscServer.stop();
     await persistence.flush();
     await wsServer.close();
     await new Promise<void>((resolve) => httpServer.close(() => resolve()));
-    console.log('[Boot] HTTP server closed. Goodbye.');
+    console.log('[Boot] Goodbye.');
   };
 
   const serverUrl = lanUrls[0] ?? `http://localhost:${port}`;
@@ -364,7 +393,6 @@ export async function startServer(overrides?: { port?: number; serialPort?: stri
 }
 
 // ── CLI self-execution ────────────────────────────────────────────────────────
-// Runs when invoked directly: `node dist/index.js` or `npm start`
 
 if (require.main === module) {
   startServer()

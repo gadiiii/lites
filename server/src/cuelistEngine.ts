@@ -4,6 +4,10 @@
  * Manages cuelist playback: GO/Back/Stop commands and real-time cross-fades
  * between cues. The tick() method is registered as a DmxEngine tick processor
  * and writes interpolated fixture values to the universe during active fades.
+ *
+ * Split-fade: channels going up use the incoming cue's fadeIn time, while
+ * channels going down use the departing cue's fadeOut time. Both fades run
+ * simultaneously from the moment GO is pressed.
  */
 
 import { randomUUID } from 'crypto';
@@ -14,7 +18,9 @@ interface FadeState {
   fromValues: Record<string, Partial<FixtureParams>>;
   toValues: Record<string, Partial<FixtureParams>>;
   startMs: number;
-  durationMs: number;
+  fadeInMs: number;
+  fadeOutMs: number;
+  outgoingCueId: string | null;
 }
 
 interface PlaybackState {
@@ -44,28 +50,32 @@ export class CuelistEngine {
     }
   }
 
-  /** Called each DMX tick — interpolates active fades */
+  /** Called each DMX tick — interpolates active fades (split fade: up=fadeIn, down=fadeOut) */
   tick(nowMs: number): void {
     for (const [id, pb] of this.playback.entries()) {
       if (!pb.fading) continue;
 
       const { fading } = pb;
-      const t = Math.min(1, (nowMs - fading.startMs) / fading.durationMs);
+      const elapsed = nowMs - fading.startMs;
+      const maxDuration = Math.max(fading.fadeInMs, fading.fadeOutMs);
+      const overallT = maxDuration > 0 ? Math.min(1, elapsed / maxDuration) : 1;
 
-      // Write lerped values for each fixture
       for (const [fixtureId, toParams] of Object.entries(fading.toValues)) {
         const fromParams = fading.fromValues[fixtureId] ?? {};
         const lerped: Record<string, number> = {};
 
         for (const [param, toVal] of Object.entries(toParams)) {
           const fromVal = (fromParams as Record<string, number>)[param] ?? 0;
+          const goingUp = (toVal ?? 0) >= fromVal;
+          const duration = goingUp ? fading.fadeInMs : fading.fadeOutMs;
+          const t = duration > 0 ? Math.min(1, elapsed / duration) : 1;
           lerped[param] = fromVal + ((toVal ?? 0) - fromVal) * t;
         }
 
         this.patch.applyFixtureParams(fixtureId, lerped as Partial<FixtureParams>);
       }
 
-      if (t >= 1) {
+      if (overallT >= 1) {
         // Fade complete
         pb.fading = null;
 
@@ -94,7 +104,6 @@ export class CuelistEngine {
     const pb = this.playback.get(cuelistId);
     if (!pb) return;
 
-    // Clear any pending follow timer
     if (pb.followTimer) {
       clearTimeout(pb.followTimer);
       pb.followTimer = null;
@@ -116,7 +125,7 @@ export class CuelistEngine {
     }
 
     const prevIndex = pb.cueIndex - 1;
-    if (prevIndex < 0) return; // already at beginning
+    if (prevIndex < 0) return;
 
     this.jumpToIndex(cuelistId, prevIndex);
   }
@@ -161,9 +170,13 @@ export class CuelistEngine {
       fromValues[fixtureId] = { ...fixtureParams[fixtureId] };
     }
 
-    const durationMs = Math.max(0, cue.fadeIn * 1000);
+    // Outgoing cue determines fadeOut time; incoming cue determines fadeIn time
+    const outgoingCue = pb.cueIndex >= 0 ? cl.cues[pb.cueIndex] : null;
+    const fadeInMs = Math.max(0, cue.fadeIn * 1000);
+    const fadeOutMs = Math.max(0, (outgoingCue?.fadeOut ?? 0) * 1000);
+    const outgoingCueId = outgoingCue?.id ?? null;
 
-    if (durationMs === 0) {
+    if (fadeInMs === 0 && fadeOutMs === 0) {
       // Instant cut — apply immediately
       for (const [fixtureId, params] of Object.entries(cue.values)) {
         this.patch.applyFixtureParams(fixtureId, params);
@@ -172,13 +185,14 @@ export class CuelistEngine {
       pb.fading = null;
       this.broadcastUpdate();
     } else {
-      // Start fade
       pb.cueIndex = index;
       pb.fading = {
         fromValues,
         toValues: cue.values,
         startMs: Date.now(),
-        durationMs,
+        fadeInMs,
+        fadeOutMs,
+        outgoingCueId,
       };
       this.broadcastUpdate();
     }
@@ -218,7 +232,6 @@ export class CuelistEngine {
     if (!cl) return null;
 
     if (cueId) {
-      // Update existing cue metadata only
       const cue = cl.cues.find((c) => c.id === cueId);
       if (!cue) return null;
       cue.label = label;
@@ -229,7 +242,6 @@ export class CuelistEngine {
       return cue;
     }
 
-    // Capture current live state
     const values: Record<string, Partial<FixtureParams>> = {};
     for (const [id, params] of Object.entries(this.patch.getFixtureParams())) {
       values[id] = { ...params };
@@ -274,7 +286,6 @@ export class CuelistEngine {
     if (idx === -1) return false;
     cl.cues.splice(idx, 1);
 
-    // Adjust playback index if needed
     const pb = this.playback.get(cuelistId);
     if (pb && pb.cueIndex >= idx) {
       pb.cueIndex = Math.max(-1, pb.cueIndex - 1);
@@ -303,6 +314,7 @@ export class CuelistEngine {
       result[id] = {
         activeCueId,
         playing: pb.fading !== null,
+        fadingOutCueId: pb.fading?.outgoingCueId ?? null,
       };
     }
     return result;

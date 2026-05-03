@@ -8,13 +8,20 @@
  *   - blackout (always false)
  *   - effectTemplates (built-in, code-defined)
  *   - cuelistPlayback (ephemeral runtime state)
+ *   - timelinePlayback (ephemeral runtime state)
  */
 
 import fs from 'fs/promises';
 import path from 'path';
-import { ShowState } from '@lites/shared';
+import { OutputDriverConfig, OscConfig, ShowState } from '@lites/shared';
+
+export const SCHEMA_VERSION = 2;
+
+const DEFAULT_OUTPUT_DRIVER: OutputDriverConfig = { driver: 'enttec-usb', serialPort: '/dev/ttyUSB0' };
+const DEFAULT_OSC_CONFIG: OscConfig = { enabled: false, port: 8000 };
 
 const DEFAULT_SHOW: ShowState = {
+  schemaVersion: SCHEMA_VERSION,
   profiles: {
     RGB_D: {
       id: 'RGB_D',
@@ -40,6 +47,7 @@ const DEFAULT_SHOW: ShowState = {
   },
   blackout: false,
   masterDimmer: 255,
+  groups: {},
   presets: {},
   effectTemplates: [], // not persisted, populated by effectsEngine
   effectInstances: [],
@@ -50,6 +58,11 @@ const DEFAULT_SHOW: ShowState = {
     columns: 3,
     tiles: [],
   },
+  midiMappings: [],
+  timelines: {},
+  timelinePlayback: {}, // not persisted
+  outputDriverConfig: DEFAULT_OUTPUT_DRIVER,
+  oscConfig: DEFAULT_OSC_CONFIG,
 };
 
 export class Persistence {
@@ -74,15 +87,22 @@ export class Persistence {
         blackout: false,
         effectTemplates: [],
         cuelistPlayback: {},
-        // Ensure new fields default gracefully
+        timelinePlayback: {},
+        // Ensure new v2 fields default gracefully
+        schemaVersion: SCHEMA_VERSION,
         masterDimmer: parsed.masterDimmer ?? 255,
+        groups: parsed.groups ?? {},
         presets: parsed.presets ?? {},
         effectInstances: parsed.effectInstances ?? [],
         cuelists: parsed.cuelists ?? {},
         simplePageConfig: parsed.simplePageConfig ?? { title: 'Performer View', columns: 3, tiles: [] },
+        midiMappings: parsed.midiMappings ?? [],
+        timelines: parsed.timelines ?? {},
+        outputDriverConfig: parsed.outputDriverConfig ?? DEFAULT_OUTPUT_DRIVER,
+        oscConfig: parsed.oscConfig ?? DEFAULT_OSC_CONFIG,
       };
 
-      console.log(`[Persistence] Loaded show from "${this.filePath}".`);
+      console.log(`[Persistence] Loaded show from "${this.filePath}" (schema v${parsed.schemaVersion ?? 1}).`);
       return state;
     } catch (err: unknown) {
       if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
@@ -118,9 +138,11 @@ export class Persistence {
     // Strip transient fields before writing
     const toSave: ShowState = {
       ...state,
-      blackout: false,         // transient
-      effectTemplates: [],     // built-in, not stored
-      cuelistPlayback: {},     // ephemeral
+      schemaVersion: SCHEMA_VERSION,
+      blackout: false,       // transient
+      effectTemplates: [],   // built-in, not stored
+      cuelistPlayback: {},   // ephemeral
+      timelinePlayback: {},  // ephemeral
     };
 
     const tmpPath = this.filePath + '.tmp';

@@ -9,8 +9,11 @@ import PatchPage from './components/PatchPage.js';
 import PresetsPage from './components/PresetsPage.js';
 import EffectsPage from './components/EffectsPage.js';
 import CuelistsPage from './components/CuelistsPage.js';
+import TimelinePage from './components/TimelinePage.js';
+import MidiPage from './components/MidiPage.js';
 import SimplePageAdmin from './components/SimplePageAdmin.js';
 import LoginPage from './components/LoginPage.js';
+import { useKeyboardShortcuts } from './ws/useKeyboardShortcuts.js';
 import { T } from './theme.js';
 
 type AuthState = 'checking' | 'login' | 'ok';
@@ -19,6 +22,7 @@ export default function App() {
   const [authState, setAuthState] = useState<AuthState>('checking');
   const ws = useWebSocket();
   const [activeView, setActiveView] = useState<View>('live');
+  useKeyboardShortcuts(ws.send, activeView);
 
   // On mount: check whether auth is required and if stored token is valid
   useEffect(() => {
@@ -106,6 +110,18 @@ export default function App() {
       {activeView === 'cuelists' && (
         <div style={{ flex: 1, overflow: 'hidden' }}>
           <CuelistsPage ws={ws} />
+        </div>
+      )}
+
+      {activeView === 'timelines' && (
+        <div style={{ flex: 1, overflow: 'hidden' }}>
+          <TimelinePage ws={ws} />
+        </div>
+      )}
+
+      {activeView === 'midi' && (
+        <div style={{ flex: 1, overflow: 'hidden' }}>
+          <MidiPage ws={ws} />
         </div>
       )}
 

@@ -1,40 +1,21 @@
 /**
  * dmxEngine.ts
  *
- * Owns the authoritative DMX universe buffer and drives the ENTTEC DMX USB Pro
- * over serial at a configurable frame rate.
+ * Owns the authoritative DMX universe buffer and drives a pluggable output
+ * driver at a configurable frame rate.
  *
- * ENTTEC DMX USB Pro frame format (label 6 — "Send DMX Packet Request"):
+ * The output driver interface (DMXOutput) decouples this engine from any
+ * specific hardware protocol. Drivers: ENTTEC USB Pro, Art-Net, sACN, Null.
  *
- *   [0x7E] [0x06] [lenLo] [lenHi] [0x00] [ch1..ch512] [0xE7]
- *    SOM    label  LSB     MSB     DMX SC  512 bytes     EOM
- *
- * Total: 518 bytes. Serial at 57600 baud, 8 data bits, 2 stop bits, no parity.
- * The Pro's internal microcontroller generates the DMX break/MAB timing.
- *
- * If the serial port fails to open (no hardware), the engine continues to
- * maintain the buffer in memory — useful for dev/test without physical gear.
+ * If the driver fails to open (no hardware), the engine continues to maintain
+ * the buffer in memory — useful for dev/test without physical gear.
  */
 
-import type { SerialPort as SerialPortType } from 'serialport';
+import type { DMXOutput } from './output/DMXOutput.js';
 import { FixtureDef, FixtureParams, Profile } from '@lites/shared';
 
-const ENTTEC_SOM = 0x7e;
-const ENTTEC_EOM = 0xe7;
-const ENTTEC_LABEL_SEND_DMX = 0x06;
 const DMX_CHANNELS = 512;
-const FRAME_SIZE = 6 + DMX_CHANNELS; // SOM + label + lenLo + lenHi + SC + 512 + EOM
-
-// Pre-allocate the frame buffer (reused every tick to avoid GC pressure)
-const frameBuffer = Buffer.allocUnsafe(FRAME_SIZE);
-frameBuffer[0] = ENTTEC_SOM;
-frameBuffer[1] = ENTTEC_LABEL_SEND_DMX;
-const dataLen = DMX_CHANNELS + 1; // +1 for DMX start code byte
-frameBuffer[2] = dataLen & 0xff;          // LSB
-frameBuffer[3] = (dataLen >> 8) & 0xff;  // MSB
-frameBuffer[4] = 0x00;                   // DMX start code (always 0 for standard DMX)
-// bytes 5..516 = channel values (filled each tick)
-frameBuffer[FRAME_SIZE - 1] = ENTTEC_EOM;
+const ZERO_UNIVERSE = new Uint8Array(DMX_CHANNELS); // reused for blackout frames
 
 export class DmxEngine {
   /** Authoritative DMX universe: indices 0–511 map to channels 1–512 */
@@ -51,10 +32,12 @@ export class DmxEngine {
   /** Which universe indices are "dimmer" channels (zeroed on blackout, scaled by master) */
   private dimmerIndices: number[] = [];
 
-  private port: SerialPortType | null = null;
+  private output: DMXOutput;
   private tickInterval: ReturnType<typeof setInterval> | null = null;
-  private portReady = false;
   private fps: number;
+
+  /** Pre-allocated output buffer — avoids allocating per tick */
+  private readonly outputBuffer = new Uint8Array(DMX_CHANNELS);
 
   /**
    * Registered processors called every tick before the frame is sent.
@@ -62,8 +45,9 @@ export class DmxEngine {
    */
   private tickProcessors: Array<(nowMs: number) => void> = [];
 
-  constructor(fps: number) {
+  constructor(fps: number, output: DMXOutput) {
     this.fps = fps;
+    this.output = output;
   }
 
   /** Register a function to be called every DMX tick (before frame output) */
@@ -71,53 +55,20 @@ export class DmxEngine {
     this.tickProcessors.push(fn);
   }
 
-  async open(serialPath: string): Promise<void> {
-    let SerialPort: typeof SerialPortType;
-    try {
-      ({ SerialPort } = await import('serialport'));
-    } catch {
-      console.warn('[DMX] serialport module not available — running in headless mode.');
-      return;
-    }
+  /** Open the current output driver */
+  async openOutput(): Promise<void> {
+    await this.output.open();
+  }
 
-    return new Promise((resolve) => {
-      const port = new SerialPort(
-        {
-          path: serialPath,
-          baudRate: 57600,
-          dataBits: 8,
-          stopBits: 2,
-          parity: 'none',
-          autoOpen: false,
-        }
-      );
-
-      port.open((err) => {
-        if (err) {
-          console.warn(
-            `[DMX] Could not open serial port "${serialPath}": ${err.message}`
-          );
-          console.warn('[DMX] Running in headless mode (no physical output).');
-          resolve();
-          return;
-        }
-        this.port = port;
-        this.portReady = true;
-        console.log(`[DMX] Serial port "${serialPath}" opened.`);
-
-        port.on('error', (e) => {
-          console.error(`[DMX] Serial error: ${e.message}`);
-          this.portReady = false;
-        });
-
-        port.on('close', () => {
-          console.warn('[DMX] Serial port closed.');
-          this.portReady = false;
-        });
-
-        resolve();
-      });
-    });
+  /**
+   * Hot-swap the output driver at runtime (e.g. switching from ENTTEC to Art-Net).
+   * Closes the current driver first, then opens the new one.
+   */
+  async switchOutput(newOutput: DMXOutput): Promise<void> {
+    this.output.close();
+    this.output = newOutput;
+    await this.output.open();
+    console.log('[DMX] Output driver switched.');
   }
 
   startTick(): void {
@@ -180,7 +131,7 @@ export class DmxEngine {
   /**
    * Activate or deactivate blackout.
    * The universe buffer is never touched — it always reflects live fixture state.
-   * When active, tick() outputs a zeroed frame instead of copying from universe,
+   * When active, tick() sends a zeroed frame instead of copying from universe,
    * so any param changes made during blackout are preserved and take effect on
    * deactivation without losing data.
    */
@@ -189,11 +140,11 @@ export class DmxEngine {
     this.blackoutActive = active;
   }
 
-  /** Called every tick: runs processors then builds and sends the ENTTEC frame */
+  /** Called every tick: runs processors then builds and sends the output frame */
   private tick(): void {
     const now = Date.now();
 
-    // Run registered tick processors (effects, cuelist fades)
+    // Run registered tick processors (effects, cuelist fades, timeline playback)
     for (const proc of this.tickProcessors) {
       try {
         proc(now);
@@ -203,47 +154,32 @@ export class DmxEngine {
     }
 
     if (this.blackoutActive) {
-      // Output a zero frame — universe is untouched so live state is preserved.
-      // Changes made during blackout take effect immediately on deactivation.
-      frameBuffer.fill(0, 5, 5 + DMX_CHANNELS);
+      // Send a zero frame — universe is untouched so live state is preserved.
+      this.output.send(ZERO_UNIVERSE);
     } else {
-      // Copy live universe into the reusable frame buffer (after the 5-byte header)
-      frameBuffer.set(this.universe, 5);
-
-      // Apply grand master dimmer to dimmer channels (output-only, universe unchanged)
+      // Copy live universe into the output buffer, then apply master dimmer
+      this.outputBuffer.set(this.universe);
       if (this.masterDimmer < 255 && this.dimmerIndices.length > 0) {
         const scale = this.masterDimmer / 255;
         for (const idx of this.dimmerIndices) {
-          frameBuffer[5 + idx] = Math.round(frameBuffer[5 + idx] * scale);
+          this.outputBuffer[idx] = Math.round(this.outputBuffer[idx] * scale);
         }
       }
-    }
-
-    if (this.portReady && this.port) {
-      this.port.write(frameBuffer, (err) => {
-        if (err) {
-          console.error(`[DMX] Write error: ${err.message}`);
-          this.portReady = false;
-        }
-      });
+      this.output.send(this.outputBuffer);
     }
   }
 
   /**
-   * Zero all 512 channels and write one ENTTEC frame synchronously.
-   * Call this before closing the serial port so fixtures go dark on shutdown.
+   * Zero all 512 channels and send one frame synchronously.
+   * Call this before closing the output so fixtures go dark on shutdown.
    */
   sendBlackout(): void {
     this.universe.fill(0);
-    frameBuffer.set(this.universe, 5);
-    if (this.portReady && this.port) {
-      this.port.write(frameBuffer);
-    }
+    this.output.send(ZERO_UNIVERSE);
   }
 
   close(): void {
     this.stopTick();
-    this.sendBlackout(); // ensure fixtures are dark before the port closes
-    this.port?.close();
+    this.output.close(); // driver handles sending a final zero frame
   }
 }
