@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { T } from '../theme.js';
 import { useShowStore } from '../store/useShowStore.js';
 import type { useWebSocket } from '../ws/useWebSocket.js';
@@ -30,6 +30,43 @@ export default function TopBar({ ws }: Props) {
   );
 
   const masterPct = Math.round((masterDimmer / 255) * 100);
+
+  const importRef = useRef<HTMLInputElement>(null);
+
+  const handleExport = useCallback(() => {
+    ws.send({ type: 'exportShow' });
+    const onExport = (e: Event) => {
+      const data = (e as CustomEvent).detail;
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `lites-show-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      window.removeEventListener('lites:showExport', onExport);
+    };
+    window.addEventListener('lites:showExport', onExport);
+  }, [ws]);
+
+  const handleImportFile = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const data = JSON.parse(ev.target?.result as string);
+        if (confirm('Import show? This will replace all current show data.')) {
+          ws.send({ type: 'importShow', data });
+        }
+      } catch {
+        alert('Invalid show file.');
+      }
+    };
+    reader.readAsText(file);
+    // Reset input so the same file can be re-selected
+    e.target.value = '';
+  }, [ws]);
 
   // Two-step shutdown confirm: first click arms it, second click fires.
   const [shutdownArmed, setShutdownArmed] = useState(false);
@@ -184,6 +221,52 @@ export default function TopBar({ ws }: Props) {
         />
         Blackout
       </button>
+
+      {/* Export / Import */}
+      <button
+        onClick={handleExport}
+        title="Export show to JSON"
+        style={{
+          background: 'transparent',
+          border: `1px solid ${T.border2}`,
+          color: T.dim,
+          fontFamily: T.mono,
+          fontSize: 11,
+          fontWeight: 600,
+          letterSpacing: '0.08em',
+          textTransform: 'uppercase',
+          padding: '5px 12px',
+          borderRadius: T.radiusSm,
+          cursor: 'pointer',
+        }}
+      >
+        Export
+      </button>
+      <label
+        title="Import show from JSON"
+        style={{
+          background: 'transparent',
+          border: `1px solid ${T.border2}`,
+          color: T.dim,
+          fontFamily: T.mono,
+          fontSize: 11,
+          fontWeight: 600,
+          letterSpacing: '0.08em',
+          textTransform: 'uppercase',
+          padding: '5px 12px',
+          borderRadius: T.radiusSm,
+          cursor: 'pointer',
+        }}
+      >
+        Import
+        <input
+          ref={importRef}
+          type="file"
+          accept=".json"
+          onChange={handleImportFile}
+          style={{ display: 'none' }}
+        />
+      </label>
 
       {/* Separator */}
       <div style={{ width: 1, height: 18, background: T.border }} />

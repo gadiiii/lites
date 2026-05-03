@@ -1,7 +1,7 @@
 import React from 'react';
 import { T } from '../theme.js';
 
-export type View = 'live' | 'patch' | 'presets' | 'effects' | 'cuelists' | 'simple';
+export type View = 'live' | 'patch' | 'presets' | 'effects' | 'cuelists' | 'timelines' | 'midi' | 'simple';
 
 interface NavTabsProps {
   activeView: View;
@@ -9,12 +9,14 @@ interface NavTabsProps {
 }
 
 const TABS: { id: View; label: string }[] = [
-  { id: 'live',     label: 'Live' },
-  { id: 'patch',    label: 'Patch' },
-  { id: 'presets',  label: 'Presets' },
-  { id: 'effects',  label: 'Effects' },
-  { id: 'cuelists', label: 'Cuelists' },
-  { id: 'simple',   label: 'Simple Page' },
+  { id: 'live',      label: 'Live' },
+  { id: 'patch',     label: 'Patch' },
+  { id: 'presets',   label: 'Presets' },
+  { id: 'effects',   label: 'Effects' },
+  { id: 'cuelists',  label: 'Cuelists' },
+  { id: 'timelines', label: 'Timeline' },
+  { id: 'midi',      label: 'MIDI / OSC' },
+  { id: 'simple',    label: 'Simple Page' },
 ];
 
 export default function NavTabs({ activeView, onNavigate }: NavTabsProps) {

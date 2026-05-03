@@ -101,7 +101,15 @@ export default function SimplePage() {
         send({ type: 'setBlackout', active: !blackout });
         break;
       case 'scene':
-        break; // scene tiles not yet implemented
+        if (tile.sceneValues) {
+          for (const [fixtureId, params] of Object.entries(tile.sceneValues)) {
+            send({ type: 'setFixture', fixtureId, params });
+          }
+        }
+        break;
+      case 'flash':
+        // flash is handled via pointer events; onTap is not used for flash
+        break;
     }
   }, [send, blackout]);
 
@@ -170,8 +178,8 @@ export default function SimplePage() {
               tile={tile}
               blackout={blackout}
               onTap={() => handleTile(tile)}
-              onFlashDown={() => send({ type: 'flash', fixtureIds: [], active: true })}
-              onFlashUp={() => send({ type: 'flash', fixtureIds: [], active: false })}
+              onFlashDown={() => send({ type: 'flash', fixtureIds: tile.fixtureIds ?? [], active: true })}
+              onFlashUp={() => send({ type: 'flash', fixtureIds: tile.fixtureIds ?? [], active: false })}
             />
           ))
         )}

@@ -5,6 +5,9 @@
  * profiles. Provides the single write path from logical fixture params
  * (dimmer/red/green/blue) to the raw DMX universe buffer.
  *
+ * Also manages fixture groups — named collections of fixtures for shared
+ * live control and preset scoping.
+ *
  * Address arithmetic:
  *   universe index (0-based) = fixture.address - 1 + profile.params[paramName]
  *
@@ -12,13 +15,21 @@
  */
 
 import { randomUUID } from 'crypto';
-import { FixtureDef, FixtureParams, Profile, ShowState } from '@lites/shared';
+import { FixtureDef, FixtureParams, Group, Profile, ShowState } from '@lites/shared';
 import { DmxEngine } from './dmxEngine.js';
+
+export interface AddressConflict {
+  fixtureId: string;
+  fixtureName: string;
+  start: number;
+  end: number;
+}
 
 export class Patch {
   private profiles: Record<string, Profile> = {};
   private fixtures: Record<string, FixtureDef> = {};
   private fixtureParams: Record<string, FixtureParams> = {};
+  private groups: Record<string, Group> = {};
 
   private engine: DmxEngine;
 
@@ -30,6 +41,7 @@ export class Patch {
     this.profiles = { ...state.profiles };
     this.fixtures = { ...state.fixtures };
     this.fixtureParams = JSON.parse(JSON.stringify(state.fixtureParams));
+    this.groups = { ...(state.groups ?? {}) };
 
     // Hydrate the universe buffer from persisted params
     for (const fixture of Object.values(this.fixtures)) {
@@ -44,24 +56,38 @@ export class Patch {
     this.updateDimmerIndices();
   }
 
-  getProfiles(): Record<string, Profile> {
-    return this.profiles;
-  }
+  getProfiles(): Record<string, Profile> { return this.profiles; }
+  getFixtures(): Record<string, FixtureDef> { return this.fixtures; }
+  getFixtureParams(): Record<string, FixtureParams> { return this.fixtureParams; }
+  getGroups(): Record<string, Group> { return this.groups; }
+  getProfile(profileId: string): Profile | undefined { return this.profiles[profileId]; }
+  getFixture(fixtureId: string): FixtureDef | undefined { return this.fixtures[fixtureId]; }
 
-  getFixtures(): Record<string, FixtureDef> {
-    return this.fixtures;
-  }
+  /**
+   * Check if a proposed address range conflicts with any existing fixture.
+   * Returns an array of conflicting fixtures (empty = no conflict).
+   * Optionally pass `excludeFixtureId` to ignore the fixture being updated.
+   */
+  checkAddressConflict(
+    address: number,
+    channelCount: number,
+    excludeFixtureId?: string
+  ): AddressConflict[] {
+    const start = address;
+    const end = address + channelCount - 1;
+    const conflicts: AddressConflict[] = [];
 
-  getFixtureParams(): Record<string, FixtureParams> {
-    return this.fixtureParams;
-  }
-
-  getProfile(profileId: string): Profile | undefined {
-    return this.profiles[profileId];
-  }
-
-  getFixture(fixtureId: string): FixtureDef | undefined {
-    return this.fixtures[fixtureId];
+    for (const fixture of Object.values(this.fixtures)) {
+      if (fixture.id === excludeFixtureId) continue;
+      const profile = this.profiles[fixture.profileId];
+      if (!profile) continue;
+      const fStart = fixture.address;
+      const fEnd = fixture.address + profile.channelCount - 1;
+      if (start <= fEnd && end >= fStart) {
+        conflicts.push({ fixtureId: fixture.id, fixtureName: fixture.name, start: fStart, end: fEnd });
+      }
+    }
+    return conflicts;
   }
 
   /**
@@ -76,14 +102,11 @@ export class Patch {
     const profile = this.profiles[fixture.profileId];
     if (!profile) return null;
 
-    // Merge into stored params
     const current = this.fixtureParams[fixtureId] ?? this.defaultParams(profile);
     const merged: FixtureParams = { ...current, ...params } as FixtureParams;
     this.fixtureParams[fixtureId] = merged;
 
-    // Write to universe (engine handles clamping to 0–255)
     this.engine.writeFixture(fixture, profile, merged);
-
     return merged;
   }
 
@@ -129,9 +152,7 @@ export class Patch {
     const fixture: FixtureDef = { id, name, address, profileId };
     this.fixtures[id] = fixture;
 
-    // Default params for new fixture (all zeros)
     this.fixtureParams[id] = this.defaultParams(profile);
-
     this.updateDimmerIndices();
     return fixture;
   }
@@ -140,22 +161,18 @@ export class Patch {
     const fixture = this.fixtures[fixtureId];
     if (!fixture) return null;
 
-    // If profile is changing, reset params to defaults for new profile
     if (changes.profileId && changes.profileId !== fixture.profileId) {
       const newProfile = this.profiles[changes.profileId];
       if (!newProfile) return null;
-      // Clear old channels from universe
       this.clearFixtureFromUniverse(fixture);
       this.fixtureParams[fixtureId] = this.defaultParams(newProfile);
     } else if (changes.address !== undefined) {
-      // Clear old address range from universe
       this.clearFixtureFromUniverse(fixture);
     }
 
     const updated: FixtureDef = { ...fixture, ...changes };
     this.fixtures[fixtureId] = updated;
 
-    // Re-apply params to universe at new address
     const profile = this.profiles[updated.profileId];
     const params = this.fixtureParams[fixtureId];
     if (profile && params) {
@@ -170,11 +187,15 @@ export class Patch {
     const fixture = this.fixtures[fixtureId];
     if (!fixture) return false;
 
-    // Clear the fixture's DMX channels from universe
     this.clearFixtureFromUniverse(fixture);
-
     delete this.fixtures[fixtureId];
     delete this.fixtureParams[fixtureId];
+
+    // Remove from any groups
+    for (const group of Object.values(this.groups)) {
+      group.fixtureIds = group.fixtureIds.filter((id) => id !== fixtureId);
+    }
+
     this.updateDimmerIndices();
     return true;
   }
@@ -188,8 +209,16 @@ export class Patch {
     return profile;
   }
 
+  updateProfile(profileId: string, changes: { name?: string; channelCount?: number; params?: Record<string, number> }): Profile | null {
+    const profile = this.profiles[profileId];
+    if (!profile) return null;
+    const updated: Profile = { ...profile, ...changes };
+    this.profiles[profileId] = updated;
+    this.updateDimmerIndices();
+    return updated;
+  }
+
   deleteProfile(profileId: string): { success: boolean; reason?: string } {
-    // Reject if any fixture uses this profile
     const using = Object.values(this.fixtures).find((f) => f.profileId === profileId);
     if (using) {
       return { success: false, reason: `Profile in use by fixture "${using.name}"` };
@@ -199,6 +228,31 @@ export class Patch {
     }
     delete this.profiles[profileId];
     return { success: true };
+  }
+
+  // ── CRUD: Groups ───────────────────────────────────────────────────────────
+
+  addGroup(name: string, fixtureIds: string[]): Group {
+    const id = randomUUID().slice(0, 8);
+    const group: Group = { id, name, fixtureIds: fixtureIds.filter((fid) => !!this.fixtures[fid]) };
+    this.groups[id] = group;
+    return group;
+  }
+
+  updateGroup(groupId: string, changes: { name?: string; fixtureIds?: string[] }): Group | null {
+    const group = this.groups[groupId];
+    if (!group) return null;
+    if (changes.name !== undefined) group.name = changes.name;
+    if (changes.fixtureIds !== undefined) {
+      group.fixtureIds = changes.fixtureIds.filter((fid) => !!this.fixtures[fid]);
+    }
+    return group;
+  }
+
+  deleteGroup(groupId: string): boolean {
+    if (!this.groups[groupId]) return false;
+    delete this.groups[groupId];
+    return true;
   }
 
   // ── Helpers ────────────────────────────────────────────────────────────────
@@ -220,7 +274,6 @@ export class Patch {
     }
   }
 
-  /** Recomputes and registers all dimmer channel indices with the engine */
   private updateDimmerIndices(): void {
     const indices: number[] = [];
     for (const fixture of Object.values(this.fixtures)) {

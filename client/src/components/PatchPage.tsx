@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { T } from '../theme.js';
 import { useShowStore } from '../store/useShowStore.js';
-import type { Profile, FixtureDef } from '../types.js';
+import type { Group, Profile, FixtureDef } from '../types.js';
 import OflSearchModal from './OflSearchModal.js';
 import type { useWebSocket } from '../ws/useWebSocket.js';
 
@@ -197,11 +197,13 @@ export default function PatchPage({ ws }: Props) {
   const profiles = useShowStore((s) => s.profiles);
   const fixtures = useShowStore((s) => s.fixtures);
   const fixturePositions = useShowStore((s) => s.fixturePositions);
+  const groups = useShowStore((s) => s.groups);
 
   const [showAddFixture, setShowAddFixture] = useState(false);
   const [editFixtureId, setEditFixtureId] = useState<string | null>(null);
   const [showAddProfile, setShowAddProfile] = useState(false);
   const [showOfl, setShowOfl] = useState(false);
+  const [rightTab, setRightTab] = useState<'fixtures' | 'groups'>('fixtures');
 
   const sortedFixtures = useMemo(
     () => Object.values(fixtures).sort((a, b) => a.address - b.address),
@@ -332,24 +334,57 @@ export default function PatchPage({ ws }: Props) {
         </div>
       </div>
 
-      {/* ── Right: Fixtures ── */}
+      {/* ── Right: Fixtures / Groups ── */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        {/* Sub-tab bar */}
         <div style={{
-          padding: '12px 16px',
-          borderBottom: `1px solid ${T.border}`,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
+          borderBottom: `1px solid ${T.border}`,
+          paddingLeft: 8,
+          height: 36,
+          flexShrink: 0,
         }}>
-          <span style={{ fontFamily: T.mono, fontSize: 11, color: T.muted, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-            Fixtures — {sortedFixtures.length} patched
-          </span>
-          <button style={btn('primary')} onClick={() => { setShowAddFixture(!showAddFixture); setEditFixtureId(null); }}>
-            + Add Fixture
-          </button>
+          <div style={{ display: 'flex', height: '100%' }}>
+            {(['fixtures', 'groups'] as const).map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setRightTab(tab)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  borderBottom: rightTab === tab ? `2px solid ${T.accent}` : '2px solid transparent',
+                  color: rightTab === tab ? T.text : T.muted,
+                  fontFamily: T.font,
+                  fontSize: 12,
+                  fontWeight: rightTab === tab ? 600 : 400,
+                  cursor: 'pointer',
+                  padding: '0 14px',
+                  height: '100%',
+                  textTransform: 'capitalize',
+                }}
+              >
+                {tab === 'fixtures' ? `Fixtures (${sortedFixtures.length})` : `Groups (${Object.keys(groups).length})`}
+              </button>
+            ))}
+          </div>
+          {rightTab === 'fixtures' ? (
+            <button style={{ ...btn('primary'), marginRight: 12 }} onClick={() => { setShowAddFixture(!showAddFixture); setEditFixtureId(null); }}>
+              + Add Fixture
+            </button>
+          ) : (
+            <button style={{ ...btn('primary'), marginRight: 12 }} onClick={() => ws.send({ type: 'addGroup', name: 'New Group', fixtureIds: [] })}>
+              + Add Group
+            </button>
+          )}
         </div>
 
-        <div style={{ flex: 1, overflowY: 'auto', padding: 12 }}>
+        {rightTab === 'groups' && (
+          <GroupsPanel groups={groups} fixtures={fixtures} ws={ws} />
+        )}
+
+        <div style={{ flex: 1, overflowY: 'auto', padding: 12, display: rightTab === 'fixtures' ? 'block' : 'none' }}>
           {showAddFixture && (
             <FixtureForm
               profiles={profiles}
@@ -436,6 +471,104 @@ export default function PatchPage({ ws }: Props) {
           }}
           onClose={() => setShowOfl(false)}
         />
+      )}
+    </div>
+  );
+}
+
+// ── Groups Panel ──────────────────────────────────────────────────────────────
+function GroupsPanel({ groups, fixtures, ws }: {
+  groups: Record<string, Group>;
+  fixtures: Record<string, FixtureDef>;
+  ws: ReturnType<typeof useWebSocket>;
+}) {
+  const [editGroupId, setEditGroupId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+  const sortedGroups = Object.values(groups).sort((a, b) => a.name.localeCompare(b.name));
+  const fixtureList = Object.values(fixtures).sort((a, b) => a.address - b.address);
+
+  return (
+    <div style={{ flex: 1, overflowY: 'auto', padding: 12 }}>
+      {sortedGroups.length === 0 ? (
+        <div style={{ color: T.dim, textAlign: 'center', padding: 40, fontSize: 12 }}>
+          No groups defined. Click &quot;+ Add Group&quot; to create one.
+        </div>
+      ) : (
+        sortedGroups.map((g) => (
+          <div key={g.id} style={{
+            background: T.surface,
+            border: `1px solid ${T.border}`,
+            borderRadius: T.radiusSm,
+            padding: '10px 12px',
+            marginBottom: 8,
+          }}>
+            {editGroupId === g.id ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <input
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  style={{ ...input, width: '100%' }}
+                  autoFocus
+                />
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {fixtureList.map((f) => {
+                    const included = g.fixtureIds.includes(f.id);
+                    return (
+                      <button
+                        key={f.id}
+                        onClick={() => {
+                          const newIds = included
+                            ? g.fixtureIds.filter((id) => id !== f.id)
+                            : [...g.fixtureIds, f.id];
+                          ws.send({ type: 'updateGroup', groupId: g.id, changes: { fixtureIds: newIds } });
+                        }}
+                        style={{
+                          ...btn(included ? 'primary' : 'ghost'),
+                          fontSize: 11,
+                          padding: '2px 8px',
+                        }}
+                      >
+                        {f.name}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button style={btn('primary')} onClick={() => {
+                    ws.send({ type: 'updateGroup', groupId: g.id, changes: { name: editName } });
+                    setEditGroupId(null);
+                  }}>
+                    Save
+                  </button>
+                  <button style={btn()} onClick={() => setEditGroupId(null)}>Cancel</button>
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div>
+                  <div style={{ fontWeight: 500, fontSize: 13, color: T.text }}>{g.name}</div>
+                  <div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>
+                    {g.fixtureIds.length === 0
+                      ? 'No fixtures'
+                      : g.fixtureIds.map((id) => fixtures[id]?.name ?? id).join(', ')}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button style={btn()} onClick={() => { setEditGroupId(g.id); setEditName(g.name); }}>
+                    Edit
+                  </button>
+                  <button style={btn('danger')} onClick={() => {
+                    if (confirm(`Delete group "${g.name}"?`)) {
+                      ws.send({ type: 'deleteGroup', groupId: g.id });
+                    }
+                  }}>
+                    Delete
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        ))
       )}
     </div>
   );
