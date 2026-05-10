@@ -254,9 +254,9 @@ function TimelineEditor({ timeline, playback, fixtures, zoom, onZoomChange, ws }
           {/* Playhead */}
           <div style={{
             position: 'absolute',
-            top: 0,
+            top: RULER_HEIGHT,
             left: LABEL_WIDTH + position * pxPerMs,
-            width: 1,
+            width: 2,
             bottom: 0,
             background: '#f5a623',
             pointerEvents: 'none',
@@ -265,7 +265,7 @@ function TimelineEditor({ timeline, playback, fixtures, zoom, onZoomChange, ws }
 
           {/* Fixture rows */}
           {fixtureIds.length === 0 ? (
-            <div style={{ color: T.muted, fontSize: 12, padding: '20px 12px' }}>
+            <div style={{ color: T.muted, fontSize: 12, padding: '20px 12px', position: 'relative', zIndex: 11 }}>
               No events yet. Add an event below.
             </div>
           ) : (
