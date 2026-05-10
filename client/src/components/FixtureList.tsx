@@ -5,6 +5,7 @@
  */
 import React from 'react';
 import { T } from '../theme.js';
+import { Label } from '../ui.js';
 import { useShowStore } from '../store/useShowStore.js';
 import type { useWebSocket } from '../ws/useWebSocket.js';
 import { useMemo } from 'react';
@@ -49,26 +50,13 @@ export default function FixtureList({ ws: _ws }: Props) {
           flexShrink: 0,
         }}
       >
-        <span
-          style={{
-            fontFamily: T.mono,
-            fontSize: 9,
-            fontWeight: 600,
-            letterSpacing: '0.18em',
-            color: T.dim,
-            textTransform: 'uppercase',
-          }}
-        >
-          Fixtures
-        </span>
+        <Label style={{ marginBottom: 0 }}>Fixtures</Label>
       </div>
 
       {/* Groups */}
       {sortedGroups.length > 0 && (
         <div style={{ borderBottom: `1px solid ${T.border}`, flexShrink: 0 }}>
-          <div style={{ padding: '4px 14px 2px', fontFamily: T.mono, fontSize: 9, color: T.dim, textTransform: 'uppercase', letterSpacing: '0.18em' }}>
-            Groups
-          </div>
+          <Label style={{ padding: '4px 14px 2px', marginBottom: 0 }}>Groups</Label>
           {sortedGroups.map((g) => (
             <div
               key={g.id}

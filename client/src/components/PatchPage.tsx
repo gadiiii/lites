@@ -1,45 +1,12 @@
 import React, { useState, useMemo } from 'react';
 import { T } from '../theme.js';
+import { Btn, Input, Select, Label, SubTabBar, EmptyState } from '../ui.js';
 import { useShowStore } from '../store/useShowStore.js';
 import type { Group, Profile, FixtureDef } from '../types.js';
 import OflSearchModal from './OflSearchModal.js';
 import type { useWebSocket } from '../ws/useWebSocket.js';
 
 interface Props { ws: ReturnType<typeof useWebSocket>; }
-
-// ── Shared style helpers ──────────────────────────────────────────────────────
-const btn = (variant: 'primary' | 'ghost' | 'danger' = 'ghost'): React.CSSProperties => ({
-  padding: '4px 10px',
-  borderRadius: T.radiusSm,
-  border: `1px solid ${variant === 'danger' ? T.danger : variant === 'primary' ? T.accent : T.border}`,
-  background: variant === 'primary' ? T.accent : variant === 'danger' ? 'transparent' : 'transparent',
-  color: variant === 'primary' ? '#000' : variant === 'danger' ? T.danger : T.muted,
-  fontFamily: T.font,
-  fontSize: 12,
-  cursor: 'pointer',
-  flexShrink: 0,
-});
-
-const input: React.CSSProperties = {
-  background: T.surface2,
-  border: `1px solid ${T.border}`,
-  borderRadius: T.radiusSm,
-  color: T.text,
-  fontFamily: T.font,
-  fontSize: 12,
-  padding: '4px 8px',
-  outline: 'none',
-};
-
-const label: React.CSSProperties = {
-  color: T.muted,
-  fontSize: 10,
-  fontFamily: T.mono,
-  textTransform: 'uppercase',
-  letterSpacing: '0.08em',
-  display: 'block',
-  marginBottom: 4,
-};
 
 // ── Overlap detection ─────────────────────────────────────────────────────────
 function getOccupiedRanges(
@@ -90,24 +57,37 @@ function FixtureForm({
     <div style={{ background: T.surface2, borderRadius: T.radius, padding: 16, marginBottom: 12 }}>
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
         <div style={{ flex: 1, minWidth: 120 }}>
-          <span style={label}>Name</span>
-          <input style={{ ...input, width: '100%', boxSizing: 'border-box' }}
-            value={name} onChange={(e) => setName(e.target.value)} placeholder="Wash 1" />
+          <Label as="span">Name</Label>
+          <Input
+            style={{ width: '100%', boxSizing: 'border-box' }}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Wash 1"
+          />
         </div>
         <div style={{ width: 90 }}>
-          <span style={label}>DMX Address</span>
-          <input style={{ ...input, width: '100%', boxSizing: 'border-box', borderColor: overlap ? T.danger : T.border }}
-            type="number" min={1} max={512} value={address}
-            onChange={(e) => setAddress(Number(e.target.value))} />
+          <Label as="span">DMX Address</Label>
+          <Input
+            hasError={overlap}
+            style={{ width: '100%', boxSizing: 'border-box' }}
+            type="number"
+            min={1}
+            max={512}
+            value={address}
+            onChange={(e) => setAddress(Number(e.target.value))}
+          />
         </div>
         <div style={{ flex: 1, minWidth: 160 }}>
-          <span style={label}>Profile</span>
-          <select style={{ ...input, width: '100%', boxSizing: 'border-box' }}
-            value={profileId} onChange={(e) => setProfileId(e.target.value)}>
+          <Label as="span">Profile</Label>
+          <Select
+            style={{ width: '100%', boxSizing: 'border-box' }}
+            value={profileId}
+            onChange={(e) => setProfileId(e.target.value)}
+          >
             {Object.values(profiles).map((p) => (
               <option key={p.id} value={p.id}>{p.name} ({p.channelCount}ch)</option>
             ))}
-          </select>
+          </Select>
         </div>
       </div>
       {overlap && (
@@ -122,10 +102,13 @@ function FixtureForm({
         </div>
       )}
       <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-        <button style={btn('primary')} onClick={() => { if (name && profileId && !overlap) onSave(name, address, profileId); }}>
+        <Btn
+          variant="primary"
+          onClick={() => { if (name && profileId && !overlap) onSave(name, address, profileId); }}
+        >
           {editFixture ? 'Save Changes' : 'Add Fixture'}
-        </button>
-        <button style={btn()} onClick={onCancel}>Cancel</button>
+        </Btn>
+        <Btn variant="ghost" onClick={onCancel}>Cancel</Btn>
       </div>
     </div>
   );
@@ -163,30 +146,43 @@ function ProfileForm({ onSave, onCancel }: {
   return (
     <div style={{ background: T.surface2, borderRadius: T.radius, padding: 16, marginBottom: 12 }}>
       <div style={{ marginBottom: 12 }}>
-        <span style={label}>Profile Name</span>
-        <input style={{ ...input, width: 200, boxSizing: 'border-box' }}
-          value={name} onChange={(e) => setName(e.target.value)} placeholder="RGB + Dimmer" />
+        <Label as="span">Profile Name</Label>
+        <Input
+          style={{ width: 200, boxSizing: 'border-box' }}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="RGB + Dimmer"
+        />
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         {params.map((p, i) => (
           <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <input style={{ ...input, width: 120 }} value={p.key}
-              onChange={(e) => updateParam(i, 'key', e.target.value)} placeholder="param name" />
+            <Input
+              style={{ width: 120 }}
+              value={p.key}
+              onChange={(e) => updateParam(i, 'key', e.target.value)}
+              placeholder="param name"
+            />
             <span style={{ color: T.dim, fontSize: 12 }}>→ offset</span>
-            <input style={{ ...input, width: 60 }} type="number" min={0} max={511}
-              value={p.offset} onChange={(e) => updateParam(i, 'offset', e.target.value)} />
-            <button style={{ ...btn('ghost'), padding: '2px 6px', color: T.danger }}
-              onClick={() => removeParam(i)}>✕</button>
+            <Input
+              style={{ width: 60 }}
+              type="number"
+              min={0}
+              max={511}
+              value={p.offset}
+              onChange={(e) => updateParam(i, 'offset', e.target.value)}
+            />
+            <Btn variant="ghost" size="sm" style={{ color: T.danger }} onClick={() => removeParam(i)}>✕</Btn>
           </div>
         ))}
       </div>
-      <button style={{ ...btn(), marginTop: 8 }} onClick={addParam}>+ Add Channel</button>
+      <Btn variant="ghost" style={{ marginTop: 8 }} onClick={addParam}>+ Add Channel</Btn>
       <div style={{ color: T.dim, fontSize: 11, fontFamily: T.mono, marginTop: 6 }}>
         {channelCount} channel{channelCount !== 1 ? 's' : ''}
       </div>
       <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-        <button style={btn('primary')} onClick={handleSave}>Add Profile</button>
-        <button style={btn()} onClick={onCancel}>Cancel</button>
+        <Btn variant="primary" onClick={handleSave}>Add Profile</Btn>
+        <Btn variant="ghost" onClick={onCancel}>Cancel</Btn>
       </div>
     </div>
   );
@@ -262,6 +258,21 @@ export default function PatchPage({ ws }: Props) {
     verticalAlign: 'middle',
   };
 
+  const rightTabs: { id: 'fixtures' | 'groups'; label: string }[] = [
+    { id: 'fixtures', label: `Fixtures (${sortedFixtures.length})` },
+    { id: 'groups',   label: `Groups (${Object.keys(groups).length})` },
+  ];
+
+  const rightToolbar = rightTab === 'fixtures' ? (
+    <Btn variant="primary" size="sm" onClick={() => { setShowAddFixture(!showAddFixture); setEditFixtureId(null); }}>
+      + Add Fixture
+    </Btn>
+  ) : (
+    <Btn variant="primary" size="sm" onClick={() => ws.send({ type: 'addGroup', name: 'New Group', fixtureIds: [] })}>
+      + Add Group
+    </Btn>
+  );
+
   return (
     <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
       {/* ── Left: Profiles ── */}
@@ -274,7 +285,7 @@ export default function PatchPage({ ws }: Props) {
         overflow: 'hidden',
       }}>
         <div style={{
-          padding: '12px 16px',
+          padding: '10px 16px',
           borderBottom: `1px solid ${T.border}`,
           display: 'flex',
           alignItems: 'center',
@@ -284,8 +295,8 @@ export default function PatchPage({ ws }: Props) {
             Profiles
           </span>
           <div style={{ display: 'flex', gap: 6 }}>
-            <button style={btn()} onClick={() => setShowOfl(true)}>Import OFL</button>
-            <button style={btn('primary')} onClick={() => setShowAddProfile(!showAddProfile)}>+ New</button>
+            <Btn variant="ghost" size="sm" onClick={() => setShowOfl(true)}>Import OFL</Btn>
+            <Btn variant="primary" size="sm" onClick={() => setShowAddProfile(!showAddProfile)}>+ New</Btn>
           </div>
         </div>
 
@@ -298,9 +309,7 @@ export default function PatchPage({ ws }: Props) {
           )}
 
           {Object.values(profiles).length === 0 ? (
-            <div style={{ color: T.dim, textAlign: 'center', padding: 24, fontSize: 12 }}>
-              No profiles defined
-            </div>
+            <EmptyState message="No profiles defined." />
           ) : (
             Object.values(profiles).map((p) => {
               const inUse = Object.values(fixtures).some((f) => f.profileId === p.id);
@@ -319,13 +328,15 @@ export default function PatchPage({ ws }: Props) {
                         {p.channelCount}ch · {Object.entries(p.params).map(([k, v]) => `${k}:${v}`).join(' · ')}
                       </div>
                     </div>
-                    <button
-                      style={{ ...btn('danger'), opacity: inUse ? 0.4 : 1 }}
+                    <Btn
+                      variant="danger"
+                      size="sm"
+                      style={{ opacity: inUse ? 0.4 : 1 }}
                       onClick={() => !inUse && handleDeleteProfile(p.id)}
                       title={inUse ? 'In use by a fixture' : 'Delete profile'}
                     >
                       Delete
-                    </button>
+                    </Btn>
                   </div>
                 </div>
               );
@@ -336,49 +347,12 @@ export default function PatchPage({ ws }: Props) {
 
       {/* ── Right: Fixtures / Groups ── */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        {/* Sub-tab bar */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          borderBottom: `1px solid ${T.border}`,
-          paddingLeft: 8,
-          height: 36,
-          flexShrink: 0,
-        }}>
-          <div style={{ display: 'flex', height: '100%' }}>
-            {(['fixtures', 'groups'] as const).map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setRightTab(tab)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  borderBottom: rightTab === tab ? `2px solid ${T.accent}` : '2px solid transparent',
-                  color: rightTab === tab ? T.text : T.muted,
-                  fontFamily: T.font,
-                  fontSize: 12,
-                  fontWeight: rightTab === tab ? 600 : 400,
-                  cursor: 'pointer',
-                  padding: '0 14px',
-                  height: '100%',
-                  textTransform: 'capitalize',
-                }}
-              >
-                {tab === 'fixtures' ? `Fixtures (${sortedFixtures.length})` : `Groups (${Object.keys(groups).length})`}
-              </button>
-            ))}
-          </div>
-          {rightTab === 'fixtures' ? (
-            <button style={{ ...btn('primary'), marginRight: 12 }} onClick={() => { setShowAddFixture(!showAddFixture); setEditFixtureId(null); }}>
-              + Add Fixture
-            </button>
-          ) : (
-            <button style={{ ...btn('primary'), marginRight: 12 }} onClick={() => ws.send({ type: 'addGroup', name: 'New Group', fixtureIds: [] })}>
-              + Add Group
-            </button>
-          )}
-        </div>
+        <SubTabBar
+          tabs={rightTabs}
+          active={rightTab}
+          onChange={setRightTab}
+          toolbar={rightToolbar}
+        />
 
         {rightTab === 'groups' && (
           <GroupsPanel groups={groups} fixtures={fixtures} ws={ws} />
@@ -395,9 +369,7 @@ export default function PatchPage({ ws }: Props) {
           )}
 
           {sortedFixtures.length === 0 && !showAddFixture ? (
-            <div style={{ color: T.dim, textAlign: 'center', padding: 40, fontSize: 12 }}>
-              No fixtures patched. Click "+ Add Fixture" to get started.
-            </div>
+            <EmptyState message='No fixtures patched.' detail='Click "+ Add Fixture" to get started.' />
           ) : (
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
@@ -420,15 +392,13 @@ export default function PatchPage({ ws }: Props) {
                     return (
                       <tr key={f.id}>
                         <td colSpan={6} style={{ ...cell, padding: 0 }}>
-                          <div style={{ padding: '0 0 0 0' }}>
-                            <FixtureForm
-                              profiles={profiles}
-                              fixtures={fixtures}
-                              editFixture={f}
-                              onSave={(name, address, profileId) => handleUpdateFixture(f.id, name, address, profileId)}
-                              onCancel={() => setEditFixtureId(null)}
-                            />
-                          </div>
+                          <FixtureForm
+                            profiles={profiles}
+                            fixtures={fixtures}
+                            editFixture={f}
+                            onSave={(name, address, profileId) => handleUpdateFixture(f.id, name, address, profileId)}
+                            onCancel={() => setEditFixtureId(null)}
+                          />
                         </td>
                       </tr>
                     );
@@ -451,8 +421,8 @@ export default function PatchPage({ ws }: Props) {
                       </td>
                       <td style={{ ...cell, textAlign: 'right' }}>
                         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-                          <button style={btn()} onClick={() => { setEditFixtureId(f.id); setShowAddFixture(false); }}>Edit</button>
-                          <button style={btn('danger')} onClick={() => handleDeleteFixture(f.id)}>Delete</button>
+                          <Btn size="sm" variant="ghost" onClick={() => { setEditFixtureId(f.id); setShowAddFixture(false); }}>Edit</Btn>
+                          <Btn size="sm" variant="danger" onClick={() => handleDeleteFixture(f.id)}>Delete</Btn>
                         </div>
                       </td>
                     </tr>
@@ -490,9 +460,7 @@ function GroupsPanel({ groups, fixtures, ws }: {
   return (
     <div style={{ flex: 1, overflowY: 'auto', padding: 12 }}>
       {sortedGroups.length === 0 ? (
-        <div style={{ color: T.dim, textAlign: 'center', padding: 40, fontSize: 12 }}>
-          No groups defined. Click &quot;+ Add Group&quot; to create one.
-        </div>
+        <EmptyState message='No groups defined.' detail='Click "+ Add Group" to create one.' />
       ) : (
         sortedGroups.map((g) => (
           <div key={g.id} style={{
@@ -504,43 +472,40 @@ function GroupsPanel({ groups, fixtures, ws }: {
           }}>
             {editGroupId === g.id ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <input
+                <Input
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
-                  style={{ ...input, width: '100%' }}
+                  style={{ width: '100%' }}
                   autoFocus
                 />
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                   {fixtureList.map((f) => {
                     const included = g.fixtureIds.includes(f.id);
                     return (
-                      <button
+                      <Btn
                         key={f.id}
+                        variant={included ? 'active' : 'ghost'}
+                        size="sm"
                         onClick={() => {
                           const newIds = included
                             ? g.fixtureIds.filter((id) => id !== f.id)
                             : [...g.fixtureIds, f.id];
                           ws.send({ type: 'updateGroup', groupId: g.id, changes: { fixtureIds: newIds } });
                         }}
-                        style={{
-                          ...btn(included ? 'primary' : 'ghost'),
-                          fontSize: 11,
-                          padding: '2px 8px',
-                        }}
                       >
                         {f.name}
-                      </button>
+                      </Btn>
                     );
                   })}
                 </div>
                 <div style={{ display: 'flex', gap: 6 }}>
-                  <button style={btn('primary')} onClick={() => {
+                  <Btn variant="primary" onClick={() => {
                     ws.send({ type: 'updateGroup', groupId: g.id, changes: { name: editName } });
                     setEditGroupId(null);
                   }}>
                     Save
-                  </button>
-                  <button style={btn()} onClick={() => setEditGroupId(null)}>Cancel</button>
+                  </Btn>
+                  <Btn variant="ghost" onClick={() => setEditGroupId(null)}>Cancel</Btn>
                 </div>
               </div>
             ) : (
@@ -554,16 +519,16 @@ function GroupsPanel({ groups, fixtures, ws }: {
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 6 }}>
-                  <button style={btn()} onClick={() => { setEditGroupId(g.id); setEditName(g.name); }}>
+                  <Btn variant="ghost" size="sm" onClick={() => { setEditGroupId(g.id); setEditName(g.name); }}>
                     Edit
-                  </button>
-                  <button style={btn('danger')} onClick={() => {
+                  </Btn>
+                  <Btn variant="danger" size="sm" onClick={() => {
                     if (confirm(`Delete group "${g.name}"?`)) {
                       ws.send({ type: 'deleteGroup', groupId: g.id });
                     }
                   }}>
                     Delete
-                  </button>
+                  </Btn>
                 </div>
               </div>
             )}

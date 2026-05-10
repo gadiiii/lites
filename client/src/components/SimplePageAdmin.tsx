@@ -10,6 +10,7 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import QRCode from 'qrcode';
 import { T } from '../theme.js';
+import { Btn, Input, Select, Label } from '../ui.js';
 import { useShowStore } from '../store/useShowStore.js';
 import type { SimpleTile, SimpleTileType, SimplePageConfig } from '../types.js';
 import type { useWebSocket } from '../ws/useWebSocket.js';
@@ -119,7 +120,7 @@ export default function SimplePageAdmin({ ws }: Props) {
 
         {/* Header */}
         <div style={{ padding: '14px 16px', borderBottom: `1px solid ${T.border}`, flexShrink: 0 }}>
-          <div style={{ fontWeight: 700, fontSize: 13, color: T.text, marginBottom: 12 }}>Simple Page</div>
+          <div style={{ fontWeight: 700, fontSize: 13, color: T.text, marginBottom: 12 }}>Performer View</div>
 
           {/* Performer URL + QR code */}
           <div style={{
@@ -144,29 +145,23 @@ export default function SimplePageAdmin({ ws }: Props) {
           </div>
 
           {/* Title */}
-          <label style={labelStyle}>Page Title</label>
-          <input
+          <Label as="label">Page Title</Label>
+          <Input
             value={config.title}
             onChange={(e) => setTitle(e.target.value)}
-            style={{ ...inputStyle, marginBottom: 10 }}
+            style={{ width: '100%', marginBottom: 10, boxSizing: 'border-box' }}
           />
 
           {/* Columns */}
-          <label style={labelStyle}>Columns</label>
+          <Label>Columns</Label>
           <div style={{ display: 'flex', gap: 6 }}>
             {([2, 3, 4] as const).map((n) => (
-              <button key={n} onClick={() => setColumns(n)} style={{
-                flex: 1,
-                padding: '5px 0',
-                background: config.columns === n ? T.accent : 'transparent',
-                border: `1px solid ${config.columns === n ? T.accent : T.border2}`,
-                borderRadius: T.radiusSm,
-                color: config.columns === n ? '#000' : T.muted,
-                fontFamily: T.mono,
-                fontSize: 12,
-                fontWeight: 600,
-                cursor: 'pointer',
-              }}>{n}</button>
+              <Btn
+                key={n}
+                variant={config.columns === n ? 'primary' : 'ghost'}
+                onClick={() => setColumns(n)}
+                style={{ flex: 1 }}
+              >{n}</Btn>
             ))}
           </div>
         </div>
@@ -201,30 +196,20 @@ export default function SimplePageAdmin({ ws }: Props) {
                 <div style={{ fontSize: 10, color: T.dim, fontFamily: T.mono }}>{tile.type}</div>
               </div>
               {/* Move up/down */}
-              <button onClick={(e) => { e.stopPropagation(); moveTile(tile.id, -1); }} disabled={idx === 0}
-                style={iconBtn}>▲</button>
-              <button onClick={(e) => { e.stopPropagation(); moveTile(tile.id, 1); }} disabled={idx === sorted.length - 1}
-                style={iconBtn}>▼</button>
-              <button onClick={(e) => { e.stopPropagation(); deleteTile(tile.id); }}
-                style={{ ...iconBtn, color: T.danger }}>✕</button>
+              <Btn size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); moveTile(tile.id, -1); }} disabled={idx === 0} style={{ padding: '2px 5px' }}>▲</Btn>
+              <Btn size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); moveTile(tile.id, 1); }} disabled={idx === sorted.length - 1} style={{ padding: '2px 5px' }}>▼</Btn>
+              <Btn size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); deleteTile(tile.id); }} style={{ padding: '2px 5px', color: T.danger }}>✕</Btn>
             </div>
           ))}
         </div>
 
         {/* Add button */}
         <div style={{ padding: '10px 12px', borderTop: `1px solid ${T.border}`, flexShrink: 0 }}>
-          <button onClick={addTile} style={{
-            width: '100%',
-            padding: '8px',
-            background: 'transparent',
-            border: `1px dashed ${T.border2}`,
-            borderRadius: T.radiusSm,
-            color: T.accent,
-            fontFamily: T.font,
-            fontSize: 12,
-            fontWeight: 600,
-            cursor: 'pointer',
-          }}>+ Add Tile</button>
+          <Btn
+            variant="ghost"
+            onClick={addTile}
+            style={{ width: '100%', justifyContent: 'center', border: `1px dashed ${T.border2}`, color: T.accent }}
+          >+ Add Tile</Btn>
         </div>
       </div>
 
@@ -245,7 +230,7 @@ export default function SimplePageAdmin({ ws }: Props) {
       </div>
 
       {/* ── Right: live preview ──────────────────────────────────────────── */}
-      <div style={{ flex: 1, overflowY: 'auto', background: '#0d0d0d', padding: 20 }}>
+      <div style={{ flex: 1, overflowY: 'auto', background: T.bg, padding: 20 }}>
         <div style={{ fontSize: 11, fontFamily: T.mono, color: T.dim, marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
           Preview — {config.title}
         </div>
@@ -281,49 +266,61 @@ function TileEditor({ tile, presets, cuelists, onChange }: TileEditorProps) {
 
       {/* Label */}
       <div>
-        <label style={labelStyle}>Label</label>
-        <input value={tile.label} onChange={(e) => onChange({ label: e.target.value })} style={inputStyle} />
+        <Label as="label">Label</Label>
+        <Input value={tile.label} onChange={(e) => onChange({ label: e.target.value })} style={{ width: '100%', boxSizing: 'border-box' }} />
       </div>
 
       {/* Type */}
       <div>
-        <label style={labelStyle}>Type</label>
-        <select value={tile.type} onChange={(e) => onChange({ type: e.target.value as SimpleTileType })} style={inputStyle}>
+        <Label as="label">Type</Label>
+        <Select
+          value={tile.type}
+          onChange={(e) => onChange({ type: e.target.value as SimpleTileType })}
+          style={{ width: '100%', boxSizing: 'border-box' }}
+        >
           {TILE_TYPES.map((t) => (
             <option key={t.id} value={t.id}>{t.label} — {t.description}</option>
           ))}
-        </select>
+        </Select>
       </div>
 
       {/* Preset picker */}
       {tile.type === 'preset' && (
         <div>
-          <label style={labelStyle}>Preset</label>
-          <select value={tile.presetId ?? ''} onChange={(e) => onChange({ presetId: e.target.value })} style={inputStyle}>
+          <Label as="label">Preset</Label>
+          <Select
+            value={tile.presetId ?? ''}
+            onChange={(e) => onChange({ presetId: e.target.value })}
+            style={{ width: '100%', boxSizing: 'border-box' }}
+          >
             <option value="">— select —</option>
             {Object.values(presets).map((p) => (
               <option key={p.id} value={p.id}>{p.name}</option>
             ))}
-          </select>
+          </Select>
         </div>
       )}
 
       {/* Cuelist picker */}
       {tile.type === 'cuelistGo' && (
         <div>
-          <label style={labelStyle}>Cuelist</label>
-          <select value={tile.cuelistId ?? ''} onChange={(e) => onChange({ cuelistId: e.target.value })} style={inputStyle}>
+          <Label as="label">Cuelist</Label>
+          <Select
+            value={tile.cuelistId ?? ''}
+            onChange={(e) => onChange({ cuelistId: e.target.value })}
+            style={{ width: '100%', boxSizing: 'border-box' }}
+          >
             <option value="">— select —</option>
             {Object.values(cuelists).map((c) => (
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
-          </select>
+          </Select>
         </div>
       )}
 
       {/* Color */}
       <div>
-        <label style={labelStyle}>Button Color</label>
+        <Label>Button Color</Label>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
           {PRESET_COLORS.map((c) => (
             <button
@@ -333,19 +330,19 @@ function TileEditor({ tile, presets, cuelists, onChange }: TileEditorProps) {
                 width: 24, height: 24,
                 borderRadius: 4,
                 background: c,
-                border: tile.color === c ? '2px solid #fff' : '2px solid transparent',
+                border: tile.color === c ? `2px solid ${T.text}` : '2px solid transparent',
                 cursor: 'pointer',
                 padding: 0,
               }}
             />
           ))}
         </div>
-        <input
+        <Input
           type="text"
           value={tile.color ?? ''}
           onChange={(e) => onChange({ color: e.target.value })}
           placeholder="#rrggbb"
-          style={{ ...inputStyle, fontFamily: T.mono }}
+          style={{ width: '100%', boxSizing: 'border-box', fontFamily: T.mono }}
         />
       </div>
     </div>
@@ -389,37 +386,4 @@ function PreviewTile({ tile }: { tile: SimpleTile }) {
   );
 }
 
-// ── Shared styles ─────────────────────────────────────────────────────────────
-
-const labelStyle: React.CSSProperties = {
-  display: 'block',
-  fontSize: 10,
-  fontFamily: 'monospace',
-  color: '#666',
-  textTransform: 'uppercase',
-  letterSpacing: '0.1em',
-  marginBottom: 5,
-};
-
-const inputStyle: React.CSSProperties = {
-  width: '100%',
-  background: '#1a1a1a',
-  border: '1px solid #333',
-  borderRadius: 4,
-  color: '#e8e8e8',
-  fontFamily: 'system-ui, sans-serif',
-  fontSize: 12,
-  padding: '7px 10px',
-  outline: 'none',
-  boxSizing: 'border-box',
-};
-
-const iconBtn: React.CSSProperties = {
-  background: 'none',
-  border: 'none',
-  color: '#555',
-  cursor: 'pointer',
-  padding: '0 3px',
-  fontSize: 10,
-  lineHeight: 1,
-};
+// (shared style constants removed — using ui.tsx primitives instead)

@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { T } from '../theme.js';
+import { Btn, Input, Badge, EmptyState } from '../ui.js';
 import { useShowStore } from '../store/useShowStore.js';
 import type { EffectTemplate, EffectInstance } from '../types.js';
 import type { useWebSocket } from '../ws/useWebSocket.js';
@@ -104,46 +105,27 @@ function AddEffectPanel({
       <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 12 }}>
         <div>
           <div style={{ fontSize: 10, color: T.dim, fontFamily: T.mono, textTransform: 'uppercase', marginBottom: 4 }}>Rate (BPM)</div>
-          <input style={inp} type="number" min={6} max={600} value={rateBpm} onChange={(e) => setRateBpm(Number(e.target.value))} />
+          <Input type="number" min={6} max={600} value={rateBpm} onChange={(e) => setRateBpm(Number(e.target.value))} style={{ width: 70 }} />
         </div>
         <div>
           <div style={{ fontSize: 10, color: T.dim, fontFamily: T.mono, textTransform: 'uppercase', marginBottom: 4 }}>Min</div>
-          <input style={inp} type="number" min={0} max={255} value={min} onChange={(e) => setMin(Number(e.target.value))} />
+          <Input type="number" min={0} max={255} value={min} onChange={(e) => setMin(Number(e.target.value))} style={{ width: 70 }} />
         </div>
         <div>
           <div style={{ fontSize: 10, color: T.dim, fontFamily: T.mono, textTransform: 'uppercase', marginBottom: 4 }}>Max</div>
-          <input style={inp} type="number" min={0} max={255} value={max} onChange={(e) => setMax(Number(e.target.value))} />
+          <Input type="number" min={0} max={255} value={max} onChange={(e) => setMax(Number(e.target.value))} style={{ width: 70 }} />
         </div>
         <div>
           <div style={{ fontSize: 10, color: T.dim, fontFamily: T.mono, textTransform: 'uppercase', marginBottom: 4 }}>Phase °</div>
-          <input style={inp} type="number" min={0} max={360} value={phaseSpread} onChange={(e) => setPhaseSpread(Number(e.target.value))} />
+          <Input type="number" min={0} max={360} value={phaseSpread} onChange={(e) => setPhaseSpread(Number(e.target.value))} style={{ width: 70 }} />
         </div>
       </div>
 
       <div style={{ display: 'flex', gap: 8 }}>
-        <button
-          disabled={selectedFixtures.size === 0}
-          onClick={() => onAdd(Array.from(selectedFixtures), { rateBpm, min, max, phaseSpread })}
-          style={{
-            background: selectedFixtures.size > 0 ? T.accent : T.surface2,
-            border: 'none',
-            borderRadius: T.radiusSm,
-            color: selectedFixtures.size > 0 ? '#000' : T.dim,
-            fontFamily: T.font,
-            fontSize: 12,
-            fontWeight: 600,
-            padding: '6px 16px',
-            cursor: selectedFixtures.size > 0 ? 'pointer' : 'not-allowed',
-          }}
-        >
+        <Btn variant="primary" disabled={selectedFixtures.size === 0} onClick={() => onAdd(Array.from(selectedFixtures), { rateBpm, min, max, phaseSpread })}>
           Add to Show
-        </button>
-        <button
-          onClick={onClose}
-          style={{ background: 'none', border: `1px solid ${T.border}`, borderRadius: T.radiusSm, color: T.muted, fontFamily: T.font, fontSize: 12, padding: '6px 12px', cursor: 'pointer' }}
-        >
-          Cancel
-        </button>
+        </Btn>
+        <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
       </div>
     </div>
   );

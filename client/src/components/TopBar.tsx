@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { T } from '../theme.js';
+import { Btn } from '../ui.js';
 import { useShowStore } from '../store/useShowStore.js';
 import type { useWebSocket } from '../ws/useWebSocket.js';
 
@@ -223,79 +224,34 @@ export default function TopBar({ ws }: Props) {
       </button>
 
       {/* Export / Import */}
-      <button
-        onClick={handleExport}
-        title="Export show to JSON"
-        style={{
-          background: 'transparent',
-          border: `1px solid ${T.border2}`,
-          color: T.dim,
-          fontFamily: T.mono,
-          fontSize: 11,
-          fontWeight: 600,
-          letterSpacing: '0.08em',
-          textTransform: 'uppercase',
-          padding: '5px 12px',
-          borderRadius: T.radiusSm,
-          cursor: 'pointer',
-        }}
-      >
-        Export
-      </button>
+      <Btn size="sm" variant="ghost" onClick={handleExport} title="Export show to JSON">Export</Btn>
       <label
         title="Import show from JSON"
         style={{
-          background: 'transparent',
-          border: `1px solid ${T.border2}`,
-          color: T.dim,
-          fontFamily: T.mono,
-          fontSize: 11,
-          fontWeight: 600,
-          letterSpacing: '0.08em',
-          textTransform: 'uppercase',
-          padding: '5px 12px',
-          borderRadius: T.radiusSm,
-          cursor: 'pointer',
+          display: 'inline-flex', alignItems: 'center',
+          border: `1px solid ${T.border2}`, borderRadius: T.radiusSm,
+          color: T.muted, fontFamily: T.mono, fontSize: 10, fontWeight: 600,
+          letterSpacing: '0.06em', textTransform: 'uppercase',
+          padding: '3px 8px', cursor: 'pointer', userSelect: 'none',
         }}
       >
         Import
-        <input
-          ref={importRef}
-          type="file"
-          accept=".json"
-          onChange={handleImportFile}
-          style={{ display: 'none' }}
-        />
+        <input ref={importRef} type="file" accept=".json" onChange={handleImportFile} style={{ display: 'none' }} />
       </label>
 
       {/* Separator */}
       <div style={{ width: 1, height: 18, background: T.border }} />
 
       {/* Shutdown button — two-step confirm */}
-      <button
+      <Btn
+        variant={shutdownArmed ? 'danger' : 'ghost'}
+        size="sm"
         onClick={handleShutdown}
         title={shutdownArmed ? 'Click again to confirm shutdown' : 'Shut down the lites server'}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 6,
-          padding: '5px 14px',
-          borderRadius: T.radiusSm,
-          border: `1px solid ${shutdownArmed ? T.danger : T.border2}`,
-          background: shutdownArmed ? 'rgba(229,57,53,0.15)' : 'transparent',
-          color: shutdownArmed ? '#ff6b6b' : T.dim,
-          fontFamily: T.mono,
-          fontWeight: 600,
-          fontSize: 11,
-          letterSpacing: '0.08em',
-          textTransform: 'uppercase',
-          cursor: 'pointer',
-          transition: 'all 0.12s ease',
-        }}
       >
         <span style={{ fontSize: 13, lineHeight: 1 }}>⏻</span>
         {shutdownArmed ? 'Confirm?' : 'Off'}
-      </button>
+      </Btn>
     </header>
   );
 }

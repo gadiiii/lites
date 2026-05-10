@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { T } from '../theme.js';
+import { Btn, Input, Select, EmptyState } from '../ui.js';
 import { useShowStore } from '../store/useShowStore.js';
 import type { Cuelist, Cue, FollowMode } from '../types.js';
 import type { useWebSocket } from '../ws/useWebSocket.js';
@@ -48,43 +49,31 @@ function CueEditor({
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
         <div>
           <div style={{ fontSize: 9, color: T.dim, fontFamily: T.mono, textTransform: 'uppercase', marginBottom: 3 }}>Label</div>
-          <input style={{ ...inp, width: 160 }} value={label} onChange={(e) => setLabel(e.target.value)} />
+          <Input value={label} onChange={(e) => setLabel(e.target.value)} style={{ width: 160 }} />
         </div>
         <div>
           <div style={{ fontSize: 9, color: T.dim, fontFamily: T.mono, textTransform: 'uppercase', marginBottom: 3 }}>Fade In (s)</div>
-          <input style={{ ...inp, width: 60 }} type="number" min={0} max={60} step={0.1} value={fadeIn} onChange={(e) => setFadeIn(Number(e.target.value))} />
+          <Input type="number" min={0} max={60} step={0.1} value={fadeIn} onChange={(e) => setFadeIn(Number(e.target.value))} style={{ width: 60 }} />
         </div>
         <div>
           <div style={{ fontSize: 9, color: T.dim, fontFamily: T.mono, textTransform: 'uppercase', marginBottom: 3 }}>Follow</div>
-          <select
-            style={{ ...inp, width: 90 }}
-            value={followMode}
-            onChange={(e) => setFollowMode(e.target.value as FollowMode)}
-          >
+          <Select value={followMode} onChange={(e) => setFollowMode(e.target.value as FollowMode)} style={{ width: 90 }}>
             <option value="manual">Manual</option>
             <option value="follow">Follow</option>
             <option value="auto">Auto</option>
-          </select>
+          </Select>
         </div>
         {(followMode === 'follow' || followMode === 'auto') && (
           <div>
             <div style={{ fontSize: 9, color: T.dim, fontFamily: T.mono, textTransform: 'uppercase', marginBottom: 3 }}>After (s)</div>
-            <input style={{ ...inp, width: 60 }} type="number" min={0} step={0.5} value={followTime} onChange={(e) => setFollowTime(Number(e.target.value))} />
+            <Input type="number" min={0} step={0.5} value={followTime} onChange={(e) => setFollowTime(Number(e.target.value))} style={{ width: 60 }} />
           </div>
         )}
         <div style={{ display: 'flex', gap: 6 }}>
-          <button
-            onClick={() => onSave({ label, fadeIn, fadeOut, followMode, followTime: followMode !== 'manual' ? followTime : undefined })}
-            style={{ background: T.accent, border: 'none', borderRadius: T.radiusSm, color: '#000', fontFamily: T.font, fontSize: 11, fontWeight: 600, padding: '5px 12px', cursor: 'pointer' }}
-          >
+          <Btn variant="primary" onClick={() => onSave({ label, fadeIn, fadeOut, followMode, followTime: followMode !== 'manual' ? followTime : undefined })}>
             {cue ? 'Save' : 'Record Cue'}
-          </button>
-          <button
-            onClick={onCancel}
-            style={{ background: 'none', border: `1px solid ${T.border}`, borderRadius: T.radiusSm, color: T.muted, fontFamily: T.font, fontSize: 11, padding: '5px 10px', cursor: 'pointer' }}
-          >
-            Cancel
-          </button>
+          </Btn>
+          <Btn variant="ghost" onClick={onCancel}>Cancel</Btn>
         </div>
       </div>
     </div>
@@ -148,23 +137,9 @@ export default function CuelistsPage({ ws }: Props) {
   };
 
   const playBtn = (label: string, onClick: () => void, active = false): React.JSX.Element => (
-    <button
-      onClick={onClick}
-      style={{
-        background: active ? T.accent : T.surface2,
-        border: `1px solid ${active ? T.accent : T.border}`,
-        borderRadius: T.radiusSm,
-        color: active ? '#000' : T.text,
-        fontFamily: T.mono,
-        fontSize: 13,
-        fontWeight: 700,
-        padding: '6px 16px',
-        cursor: 'pointer',
-        minWidth: 56,
-      }}
-    >
+    <Btn variant={active ? 'primary' : 'ghost'} onClick={onClick} style={{ fontSize: 13, padding: '6px 16px', minWidth: 56 }}>
       {label}
-    </button>
+    </Btn>
   );
 
   return (
@@ -188,34 +163,26 @@ export default function CuelistsPage({ ws }: Props) {
           <span style={{ fontFamily: T.mono, fontSize: 10, color: T.muted, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
             Cuelists
           </span>
-          <button
-            onClick={() => setAddingCuelist(true)}
-            style={{ background: T.accent, border: 'none', borderRadius: T.radiusSm, color: '#000', fontFamily: T.font, fontSize: 11, fontWeight: 600, padding: '3px 8px', cursor: 'pointer' }}
-          >
-            + New
-          </button>
+          <Btn variant="primary" size="sm" onClick={() => setAddingCuelist(true)}>+ New</Btn>
         </div>
 
         {addingCuelist && (
           <div style={{ padding: '8px 12px', borderBottom: `1px solid ${T.border}`, display: 'flex', gap: 6 }}>
-            <input
+            <Input
               autoFocus
               value={newCuelistName}
               onChange={(e) => setNewCuelistName(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') handleAddCuelist(); if (e.key === 'Escape') setAddingCuelist(false); }}
               placeholder="Cuelist name"
-              style={{
-                background: T.surface2, border: `1px solid ${T.border2}`, borderRadius: T.radiusSm,
-                color: T.text, fontFamily: T.font, fontSize: 12, padding: '4px 8px', flex: 1, outline: 'none',
-              }}
+              style={{ flex: 1 }}
             />
-            <button onClick={handleAddCuelist} style={{ background: T.accent, border: 'none', borderRadius: T.radiusSm, color: '#000', padding: '4px 8px', cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>✓</button>
+            <Btn variant="primary" size="sm" onClick={handleAddCuelist}>✓</Btn>
           </div>
         )}
 
         <div style={{ flex: 1, overflowY: 'auto' }}>
           {sortedCuelists.length === 0 && !addingCuelist && (
-            <div style={{ padding: 16, color: T.dim, fontSize: 12 }}>No cuelists yet</div>
+            <EmptyState message="No cuelists yet." detail='Click "+ New" to create one.' />
           )}
           {sortedCuelists.map((cl) => {
             const isActive = selectedId === cl.id;

@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { useShowStore } from '../store/useShowStore.js';
+import { useShallow } from 'zustand/react/shallow';
 import type { Timeline, TimelineEvent, TimelinePlayback, ClientMessage } from '../types.js';
 import { T } from '../theme.js';
+import { Btn, Input, Select, Label, Section, EmptyState } from '../ui.js';
 
 interface TimelinePageProps {
   ws: { send: (msg: ClientMessage) => void };
@@ -13,11 +15,11 @@ const LABEL_WIDTH = 120;
 const PX_PER_SEC = 80; // pixels per second at zoom=1
 
 export default function TimelinePage({ ws }: TimelinePageProps) {
-  const { timelines, timelinePlayback, fixtures } = useShowStore((s) => ({
+  const { timelines, timelinePlayback, fixtures } = useShowStore(useShallow((s) => ({
     timelines: s.timelines,
     timelinePlayback: s.timelinePlayback,
     fixtures: s.fixtures,
-  }));
+  })));
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
@@ -44,30 +46,11 @@ export default function TimelinePage({ ws }: TimelinePageProps) {
         flexDirection: 'column',
         flexShrink: 0,
       }}>
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '8px 10px',
-          borderBottom: `1px solid ${T.border}`,
-        }}>
-          <span style={{ fontWeight: 600, fontSize: 12, color: T.text }}>Timelines</span>
-          <button
-            onClick={addTimeline}
-            style={{
-              background: T.accent,
-              border: 'none',
-              color: '#000',
-              borderRadius: 3,
-              padding: '2px 8px',
-              fontSize: 11,
-              fontWeight: 600,
-              cursor: 'pointer',
-            }}
-          >
-            +
-          </button>
-        </div>
+        <Section
+          title="Timelines"
+          toolbar={<Btn variant="primary" size="sm" onClick={addTimeline}>+</Btn>}
+          headerStyle={{ padding: '7px 10px' }}
+        />
         <div style={{ flex: 1, overflowY: 'auto' }}>
           {Object.values(timelines).map((tl) => {
             const pb = timelinePlayback[tl.id];
@@ -94,10 +77,10 @@ export default function TimelinePage({ ws }: TimelinePageProps) {
                   <div style={{ fontSize: 10, color: T.muted }}>{(tl.duration / 1000).toFixed(1)}s {tl.loop ? '↻' : ''}</div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  {pb?.playing && <span style={{ color: '#2ecc71', fontSize: 10 }}>▶</span>}
+                  {pb?.playing && <span style={{ color: T.success, fontSize: 10 }}>▶</span>}
                   <button
                     onClick={(e) => { e.stopPropagation(); deleteTimeline(tl.id); }}
-                    style={{ background: 'none', border: 'none', color: '#e74c3c', cursor: 'pointer', fontSize: 12, padding: 2 }}
+                    style={{ background: 'none', border: 'none', color: T.danger, cursor: 'pointer', fontSize: 12, padding: 2 }}
                   >
                     ×
                   </button>
@@ -106,9 +89,7 @@ export default function TimelinePage({ ws }: TimelinePageProps) {
             );
           })}
           {Object.keys(timelines).length === 0 && (
-            <div style={{ color: T.muted, fontSize: 12, textAlign: 'center', marginTop: 40, padding: '0 12px' }}>
-              No timelines.<br />Click + to create one.
-            </div>
+            <EmptyState message="No timelines." detail="Click + to create one." />
           )}
         </div>
       </div>
@@ -125,9 +106,7 @@ export default function TimelinePage({ ws }: TimelinePageProps) {
             ws={ws}
           />
         ) : (
-          <div style={{ color: T.muted, fontSize: 13, margin: 'auto', textAlign: 'center' }}>
-            Select a timeline to edit
-          </div>
+          <EmptyState message="Select a timeline to edit" />
         )}
       </div>
     </div>
@@ -215,27 +194,17 @@ function TimelineEditor({ timeline, playback, fixtures, zoom, onZoomChange, ws }
         <span style={{ fontWeight: 600, color: T.text, fontSize: 13, minWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {timeline.name}
         </span>
-        <button
+        <Btn
+          variant={isPlaying ? 'danger' : 'primary'}
           onClick={() => { isPlaying ? ws.send({ type: 'timelineStop', timelineId: timeline.id }) : ws.send({ type: 'timelineGo', timelineId: timeline.id }); }}
-          style={{
-            background: isPlaying ? '#e74c3c' : '#2ecc71',
-            border: 'none',
-            color: '#fff',
-            borderRadius: 4,
-            padding: '4px 12px',
-            fontSize: 12,
-            fontWeight: 700,
-            cursor: 'pointer',
-          }}
         >
           {isPlaying ? '■ Stop' : '▶ Play'}
-        </button>
-        <button
+        </Btn>
+        <Btn
+          variant="ghost"
+          size="sm"
           onClick={() => ws.send({ type: 'timelineJump', timelineId: timeline.id, positionMs: 0 })}
-          style={{ background: T.surface2, border: `1px solid ${T.border}`, color: T.muted, borderRadius: 4, padding: '4px 8px', fontSize: 11, cursor: 'pointer', fontFamily: T.font }}
-        >
-          ⏮
-        </button>
+        >⏮</Btn>
         <span style={{ fontSize: 11, color: T.muted, fontFamily: 'monospace' }}>
           {(position / 1000).toFixed(2)}s / {(timeline.duration / 1000).toFixed(1)}s
         </span>
@@ -252,32 +221,27 @@ function TimelineEditor({ timeline, playback, fixtures, zoom, onZoomChange, ws }
           />
           {zoom.toFixed(1)}×
         </label>
-        <button
-          onClick={() => setShowProps(!showProps)}
-          style={{ background: T.surface2, border: `1px solid ${T.border}`, color: T.muted, borderRadius: 4, padding: '4px 8px', fontSize: 11, cursor: 'pointer', marginLeft: 'auto', fontFamily: T.font }}
-        >
+        <Btn variant="ghost" size="sm" onClick={() => setShowProps(!showProps)} style={{ marginLeft: 'auto' }}>
           ⚙ Props
-        </button>
+        </Btn>
       </div>
 
       {/* Properties drawer */}
       {showProps && (
         <div style={{ padding: '8px 12px', borderBottom: `1px solid ${T.border}`, display: 'flex', gap: 12, alignItems: 'center', flexShrink: 0, flexWrap: 'wrap' }}>
-          <label style={labelStyle}>
-            Name:
-            <input value={editing.name} onChange={(e) => setEditing((p) => ({ ...p, name: e.target.value }))} style={inputStyle} />
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            <Label>Name</Label>
+            <Input value={editing.name} onChange={(e) => setEditing((p) => ({ ...p, name: e.target.value }))} />
           </label>
-          <label style={labelStyle}>
-            Duration (s):
-            <input type="number" min={0.1} step={0.1} value={editing.duration} onChange={(e) => setEditing((p) => ({ ...p, duration: e.target.value }))} style={{ ...inputStyle, width: 70 }} />
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            <Label>Duration (s)</Label>
+            <Input type="number" min={0.1} step={0.1} value={editing.duration} onChange={(e) => setEditing((p) => ({ ...p, duration: e.target.value }))} style={{ width: 70 }} />
           </label>
-          <label style={{ ...labelStyle, cursor: 'pointer' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
             <input type="checkbox" checked={editing.loop} onChange={(e) => setEditing((p) => ({ ...p, loop: e.target.checked }))} />
-            Loop
+            <Label style={{ marginBottom: 0 }}>Loop</Label>
           </label>
-          <button onClick={saveProps} style={{ background: T.accent, border: 'none', color: '#000', borderRadius: 4, padding: '4px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
-            Save
-          </button>
+          <Btn variant="primary" onClick={saveProps}>Save</Btn>
         </div>
       )}
 
@@ -348,31 +312,26 @@ function TimelineEditor({ timeline, playback, fixtures, zoom, onZoomChange, ws }
         gap: 8,
         flexWrap: 'wrap',
       }}>
-        <span style={{ fontSize: 11, color: T.muted, fontWeight: 600 }}>Add event:</span>
-        <select value={newEventFixtureId} onChange={(e) => setNewEventFixtureId(e.target.value)} style={selectStyle}>
+        <Label style={{ marginBottom: 0 }}>Add Event</Label>
+        <Select value={newEventFixtureId} onChange={(e) => setNewEventFixtureId(e.target.value)}>
           {Object.values(fixtures).map((f) => (
             <option key={f.id} value={f.id}>{f.name}</option>
           ))}
-        </select>
-        <input placeholder="param" value={newEventParam} onChange={(e) => setNewEventParam(e.target.value)} style={{ ...inputStyle, width: 70 }} />
-        <label style={labelStyle}>
-          t (s):
-          <input type="number" min={0} step={0.1} value={newEventTime} onChange={(e) => setNewEventTime(e.target.value)} style={{ ...inputStyle, width: 60 }} />
+        </Select>
+        <Input placeholder="param" value={newEventParam} onChange={(e) => setNewEventParam(e.target.value)} style={{ width: 70 }} />
+        <label style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <Label style={{ marginBottom: 0 }}>t (s)</Label>
+          <Input type="number" min={0} step={0.1} value={newEventTime} onChange={(e) => setNewEventTime(e.target.value)} style={{ width: 60 }} />
         </label>
-        <label style={labelStyle}>
-          val:
-          <input type="number" min={0} max={255} value={newEventValue} onChange={(e) => setNewEventValue(e.target.value)} style={{ ...inputStyle, width: 50 }} />
+        <label style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <Label style={{ marginBottom: 0 }}>Val</Label>
+          <Input type="number" min={0} max={255} value={newEventValue} onChange={(e) => setNewEventValue(e.target.value)} style={{ width: 50 }} />
         </label>
-        <label style={labelStyle}>
-          fade (ms):
-          <input type="number" min={0} step={100} value={newEventFadeIn} onChange={(e) => setNewEventFadeIn(e.target.value)} style={{ ...inputStyle, width: 70 }} />
+        <label style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <Label style={{ marginBottom: 0 }}>Fade (ms)</Label>
+          <Input type="number" min={0} step={100} value={newEventFadeIn} onChange={(e) => setNewEventFadeIn(e.target.value)} style={{ width: 70 }} />
         </label>
-        <button
-          onClick={addEvent}
-          style={{ background: T.accent, border: 'none', color: '#000', borderRadius: 4, padding: '4px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
-        >
-          + Add
-        </button>
+        <Btn variant="primary" onClick={addEvent}>+ Add</Btn>
       </div>
     </div>
   );
@@ -435,7 +394,7 @@ function EventBlock({ event, pxPerMs, onDelete }: { event: TimelineEvent; pxPerM
         width,
         height: ROW_HEIGHT - 6,
         background: `hsl(210, 60%, ${20 + brightness * 0.3}%)`,
-        border: '1px solid #00d4ff',
+        border: `1px solid ${T.timelineEvent}`,
         borderRadius: 3,
         display: 'flex',
         alignItems: 'center',
@@ -451,7 +410,7 @@ function EventBlock({ event, pxPerMs, onDelete }: { event: TimelineEvent; pxPerM
       </span>
       <button
         onClick={onDelete}
-        style={{ background: 'none', border: 'none', color: '#e74c3c', cursor: 'pointer', fontSize: 11, padding: 0, lineHeight: 1, flexShrink: 0 }}
+        style={{ background: 'none', border: 'none', color: T.danger, cursor: 'pointer', fontSize: 11, padding: 0, lineHeight: 1, flexShrink: 0 }}
       >
         ×
       </button>
@@ -459,31 +418,4 @@ function EventBlock({ event, pxPerMs, onDelete }: { event: TimelineEvent; pxPerM
   );
 }
 
-const inputStyle: React.CSSProperties = {
-  background: T.surface2,
-  border: `1px solid ${T.border}`,
-  color: T.text,
-  borderRadius: 4,
-  padding: '2px 6px',
-  fontSize: 12,
-  fontFamily: T.font,
-  width: 100,
-};
-
-const selectStyle: React.CSSProperties = {
-  background: T.surface2,
-  border: `1px solid ${T.border}`,
-  color: T.text,
-  borderRadius: 4,
-  padding: '2px 4px',
-  fontSize: 12,
-  fontFamily: T.font,
-};
-
-const labelStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 4,
-  fontSize: 11,
-  color: T.muted,
-};
+// (local style constants removed — using ui.tsx primitives)
