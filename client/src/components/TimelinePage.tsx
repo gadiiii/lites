@@ -367,10 +367,10 @@ function TimelineRuler({ duration, pxPerMs, labelWidth }: { duration: number; px
               alignItems: 'flex-start',
             }}
           >
-            <div style={{ width: 1, height: 6, background: T.muted, marginTop: 'auto' }} />
-            <span style={{ fontSize: 9, color: T.muted, marginLeft: 2, paddingBottom: 2 }}>
+            <span style={{ fontSize: 9, color: T.muted, marginLeft: 2, paddingTop: 3 }}>
               {ms / 1000}s
             </span>
+            <div style={{ width: 1, height: 6, background: T.muted, marginTop: 'auto' }} />
           </div>
         ))}
       </div>
