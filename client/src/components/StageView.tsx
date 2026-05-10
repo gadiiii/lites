@@ -44,9 +44,6 @@ export default function StageView({ ws }: Props) {
     [setSelected]
   );
 
-  // Stage floor rect covers the bottom 35% of the stage
-  const floorH = Math.round(size.height * 0.35);
-
   const handleDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
     if (e.dataTransfer.types.includes('lites/fixture-id')) {
       e.preventDefault();
@@ -101,24 +98,6 @@ export default function StageView({ ws }: Props) {
             width={size.width}
             height={size.height}
             fill={T.bg}
-          />
-          {/* Subtle stage floor */}
-          <Rect
-            x={0}
-            y={size.height - floorH}
-            width={size.width}
-            height={floorH}
-            fill="#111111"
-            listening={false}
-          />
-          {/* Floor edge highlight line */}
-          <Rect
-            x={0}
-            y={size.height - floorH}
-            width={size.width}
-            height={1}
-            fill={T.border}
-            listening={false}
           />
 
           {fixtureIds.map((id) => (
