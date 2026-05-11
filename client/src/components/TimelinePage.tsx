@@ -264,41 +264,35 @@ function TimelineEditor({ timeline, playback, fixtures, zoom, onZoomChange, ws }
           }} />
 
           {/* Fixture rows */}
-          {fixtureIds.length === 0 ? (
-            <div style={{ color: T.muted, fontSize: 12, padding: '20px 12px', position: 'relative', zIndex: 11 }}>
-              No events yet. Add an event below.
-            </div>
-          ) : (
-            fixtureIds.map((fixtureId) => {
-              const fixture = fixtures[fixtureId];
-              const events = timeline.events.filter((e) => e.fixtureId === fixtureId);
-              return (
-                <div key={fixtureId} style={{ display: 'flex', height: ROW_HEIGHT, borderBottom: `1px solid ${T.border}` }}>
-                  <div style={{
-                    width: LABEL_WIDTH,
-                    flexShrink: 0,
-                    display: 'flex',
-                    alignItems: 'center',
-                    padding: '0 8px',
-                    background: T.surface,
-                    borderRight: `1px solid ${T.border}`,
-                    fontSize: 11,
-                    color: T.text,
-                    overflow: 'hidden',
-                    whiteSpace: 'nowrap',
-                    textOverflow: 'ellipsis',
-                  }}>
-                    {fixture?.name ?? fixtureId}
-                  </div>
-                  <div style={{ position: 'relative', flex: 1 }}>
-                    {events.map((ev) => (
-                      <EventBlock key={ev.id} event={ev} pxPerMs={pxPerMs} onDelete={() => deleteEvent(ev.id)} />
-                    ))}
-                  </div>
+          {fixtureIds.map((fixtureId) => {
+            const fixture = fixtures[fixtureId];
+            const events = timeline.events.filter((e) => e.fixtureId === fixtureId);
+            return (
+              <div key={fixtureId} style={{ display: 'flex', height: ROW_HEIGHT, borderBottom: `1px solid ${T.border}` }}>
+                <div style={{
+                  width: LABEL_WIDTH,
+                  flexShrink: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  padding: '0 8px',
+                  background: T.surface,
+                  borderRight: `1px solid ${T.border}`,
+                  fontSize: 11,
+                  color: T.text,
+                  overflow: 'hidden',
+                  whiteSpace: 'nowrap',
+                  textOverflow: 'ellipsis',
+                }}>
+                  {fixture?.name ?? fixtureId}
                 </div>
-              );
-            })
-          )}
+                <div style={{ position: 'relative', flex: 1 }}>
+                  {events.map((ev) => (
+                    <EventBlock key={ev.id} event={ev} pxPerMs={pxPerMs} onDelete={() => deleteEvent(ev.id)} />
+                  ))}
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 
