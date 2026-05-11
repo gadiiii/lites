@@ -7,6 +7,7 @@
 
 import React, { useCallback, useState } from 'react';
 import { T } from '../theme.js';
+import { Badge, Label, Divider } from '../ui.js';
 import { useShowStore } from '../store/useShowStore.js';
 import DimmerSlider from './DimmerSlider.js';
 import type { useWebSocket } from '../ws/useWebSocket.js';
@@ -97,25 +98,6 @@ function hexToRgb(hex: string): { red: number; green: number; blue: number } {
 
 const RGB_NAMES = new Set(['red', 'green', 'blue']);
 
-// ── Style constants ──────────────────────────────────────────────────────────
-
-const SECTION_LABEL: React.CSSProperties = {
-  fontFamily: T.mono,
-  fontSize: 9,
-  fontWeight: 600,
-  letterSpacing: '0.18em',
-  color: T.dim,
-  textTransform: 'uppercase',
-  marginBottom: 10,
-  display: 'block',
-};
-
-const DIVIDER: React.CSSProperties = {
-  width: 1,
-  background: T.border,
-  alignSelf: 'stretch',
-  flexShrink: 0,
-};
 
 export default function BottomPanel({ ws }: Props) {
   const selectedIds = useShowStore((s) => s.selectedFixtureIds);
@@ -193,7 +175,7 @@ export default function BottomPanel({ ws }: Props) {
           pointerEvents: hasFixture ? 'auto' : 'none',
         }}
       >
-        <span style={SECTION_LABEL}>Dimmer</span>
+        <Label style={{ marginBottom: 10 }}>Dimmer</Label>
         <div style={{ flex: 1, width: '100%', display: 'flex', alignItems: 'stretch' }}>
           <DimmerSlider
             orientation="vertical"
@@ -203,7 +185,7 @@ export default function BottomPanel({ ws }: Props) {
         </div>
       </section>
 
-      <div style={DIVIDER} />
+      <Divider orientation="vertical" />
 
       {/* ── Section B: Channel faders / colour wheel ──────────────────────── */}
       <section
@@ -219,7 +201,7 @@ export default function BottomPanel({ ws }: Props) {
       >
         {/* Section header with optional view toggle */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-          <span style={{ ...SECTION_LABEL, marginBottom: 0 }}>Channels</span>
+          <Label style={{ marginBottom: 0 }}>Channels</Label>
           {hasFixture && hasRgb && (
             <div style={{ display: 'flex', gap: 2, marginLeft: 'auto' }}>
               <ViewToggleBtn
@@ -334,7 +316,7 @@ export default function BottomPanel({ ws }: Props) {
         )}
       </section>
 
-      <div style={DIVIDER} />
+      <Divider orientation="vertical" />
 
       {/* ── Section C: Fixture info ───────────────────────────────────────── */}
       <section
@@ -381,30 +363,23 @@ export default function BottomPanel({ ws }: Props) {
             <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
               {!multiSelect && <Badge>{`ch ${fixture.address}–${fixture.address + (profile?.channelCount ?? 1) - 1}`}</Badge>}
               {!multiSelect && <Badge>{profile?.name ?? fixture.profileId}</Badge>}
-              {multiSelect && <Badge>{selectedIds.length} fixtures — Shift+click to adjust</Badge>}
+              {multiSelect && <Badge variant="accent">{selectedIds.length} fixtures — Shift+click to adjust</Badge>}
             </div>
 
             {/* Quick action buttons */}
             <div style={{ display: 'flex', gap: 8 }}>
+              <QuickButton label="Full White" accent={T.accent} onClick={() => sendParams({ dimmer: 255, red: 255, green: 255, blue: 255 })} />
+              <QuickButton label="Off" accent={T.muted} onClick={() => sendParams({ dimmer: 0 })} />
               <QuickButton
-                label="Full White"
-                accent={T.accent}
-                onClick={() => sendParams({ dimmer: 255, red: 255, green: 255, blue: 255 })}
-              />
-              <QuickButton
-                label="Off"
-                accent={T.muted}
-                onClick={() => sendParams({ dimmer: 0 })}
-              />
-              <FlashButton
-                onPointerDown={() => {
+                label="⚡ Flash"
+                accent="#ffd54f"
+                onPointerDown={(e) => {
+                  e.currentTarget.setPointerCapture(e.pointerId);
                   if (selectedIds.length === 0) return;
                   ws.send({ type: 'flash', fixtureIds: selectedIds, active: true });
                 }}
-                onPointerUp={() => {
-                  if (selectedIds.length === 0) return;
-                  ws.send({ type: 'flash', fixtureIds: selectedIds, active: false });
-                }}
+                onPointerUp={() => { if (selectedIds.length === 0) return; ws.send({ type: 'flash', fixtureIds: selectedIds, active: false }); }}
+                onPointerLeave={() => { if (selectedIds.length === 0) return; ws.send({ type: 'flash', fixtureIds: selectedIds, active: false }); }}
               />
             </div>
           </>
@@ -455,28 +430,22 @@ function ViewToggleBtn({
   );
 }
 
-function Badge({ children }: { children: React.ReactNode }) {
-  return (
-    <span
-      style={{
-        fontFamily: T.mono,
-        fontSize: 10,
-        color: T.muted,
-        background: T.surface2,
-        border: `1px solid ${T.border}`,
-        borderRadius: T.radiusSm,
-        padding: '2px 7px',
-      }}
-    >
-      {children}
-    </span>
-  );
-}
-
-function QuickButton({ label, accent, onClick }: { label: string; accent: string; onClick: () => void }) {
+function QuickButton({
+  label, accent, onClick, onPointerDown, onPointerUp, onPointerLeave,
+}: {
+  label: string;
+  accent: string;
+  onClick?: () => void;
+  onPointerDown?: (e: React.PointerEvent<HTMLButtonElement>) => void;
+  onPointerUp?: () => void;
+  onPointerLeave?: () => void;
+}) {
   return (
     <button
       onClick={onClick}
+      onPointerDown={onPointerDown}
+      onPointerUp={onPointerUp}
+      onPointerLeave={onPointerLeave}
       style={{
         padding: '5px 14px',
         background: 'transparent',
@@ -488,34 +457,11 @@ function QuickButton({ label, accent, onClick }: { label: string; accent: string
         fontWeight: 600,
         cursor: 'pointer',
         transition: 'border-color 0.1s',
-      }}
-    >
-      {label}
-    </button>
-  );
-}
-
-function FlashButton({ onPointerDown, onPointerUp }: { onPointerDown: () => void; onPointerUp: () => void }) {
-  return (
-    <button
-      onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); onPointerDown(); }}
-      onPointerUp={onPointerUp}
-      onPointerLeave={onPointerUp}
-      style={{
-        padding: '5px 14px',
-        background: 'transparent',
-        border: `1px solid ${T.border2}`,
-        borderRadius: T.radiusSm,
-        color: '#ffd54f',
-        fontFamily: T.mono,
-        fontSize: 11,
-        fontWeight: 600,
-        cursor: 'pointer',
         userSelect: 'none',
         WebkitUserSelect: 'none',
       }}
     >
-      ⚡ Flash
+      {label}
     </button>
   );
 }

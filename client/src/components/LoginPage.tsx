@@ -8,6 +8,7 @@
 
 import React, { useState } from 'react';
 import { T } from '../theme.js';
+import { Btn, Input, Label } from '../ui.js';
 
 interface Props {
   onLogin: (token: string) => void;
@@ -84,26 +85,14 @@ export default function LoginPage({ onLogin }: Props) {
 
         {/* Password field */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <label
-            style={{ fontSize: 11, fontFamily: T.mono, color: T.muted, letterSpacing: '0.1em', textTransform: 'uppercase' }}
-          >
-            Password
-          </label>
-          <input
+          <Label as="label">Password</Label>
+          <Input
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
+            hasError={!!error}
             autoFocus
-            style={{
-              background: T.surface2,
-              border: `1px solid ${error ? T.danger : T.border2}`,
-              borderRadius: T.radiusSm,
-              color: T.text,
-              fontFamily: T.font,
-              fontSize: 14,
-              padding: '9px 12px',
-              outline: 'none',
-            }}
+            style={{ fontSize: 14, padding: '9px 12px', width: '100%', boxSizing: 'border-box' }}
           />
         </div>
 
@@ -113,25 +102,14 @@ export default function LoginPage({ onLogin }: Props) {
         )}
 
         {/* Submit */}
-        <button
+        <Btn
           type="submit"
+          variant="primary"
           disabled={loading}
-          style={{
-            background: T.accent,
-            border: 'none',
-            borderRadius: T.radiusSm,
-            color: '#000',
-            fontFamily: T.font,
-            fontSize: 13,
-            fontWeight: 700,
-            padding: '10px',
-            cursor: loading ? 'not-allowed' : 'pointer',
-            opacity: loading ? 0.6 : 1,
-            marginTop: 4,
-          }}
+          style={{ width: '100%', padding: '10px', fontSize: 13, opacity: loading ? 0.6 : 1, marginTop: 4 }}
         >
           {loading ? 'Signing in…' : 'Sign In'}
-        </button>
+        </Btn>
       </form>
     </div>
   );

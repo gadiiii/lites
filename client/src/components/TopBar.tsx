@@ -1,5 +1,6 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { T } from '../theme.js';
+import { Btn } from '../ui.js';
 import { useShowStore } from '../store/useShowStore.js';
 import type { useWebSocket } from '../ws/useWebSocket.js';
 
@@ -30,6 +31,43 @@ export default function TopBar({ ws }: Props) {
   );
 
   const masterPct = Math.round((masterDimmer / 255) * 100);
+
+  const importRef = useRef<HTMLInputElement>(null);
+
+  const handleExport = useCallback(() => {
+    ws.send({ type: 'exportShow' });
+    const onExport = (e: Event) => {
+      const data = (e as CustomEvent).detail;
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `lites-show-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      window.removeEventListener('lites:showExport', onExport);
+    };
+    window.addEventListener('lites:showExport', onExport);
+  }, [ws]);
+
+  const handleImportFile = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const data = JSON.parse(ev.target?.result as string);
+        if (confirm('Import show? This will replace all current show data.')) {
+          ws.send({ type: 'importShow', data });
+        }
+      } catch {
+        alert('Invalid show file.');
+      }
+    };
+    reader.readAsText(file);
+    // Reset input so the same file can be re-selected
+    e.target.value = '';
+  }, [ws]);
 
   // Two-step shutdown confirm: first click arms it, second click fires.
   const [shutdownArmed, setShutdownArmed] = useState(false);
@@ -185,34 +223,35 @@ export default function TopBar({ ws }: Props) {
         Blackout
       </button>
 
+      {/* Export / Import */}
+      <Btn size="sm" variant="ghost" onClick={handleExport} title="Export show to JSON">Export</Btn>
+      <label
+        title="Import show from JSON"
+        style={{
+          display: 'inline-flex', alignItems: 'center',
+          border: `1px solid ${T.border2}`, borderRadius: T.radiusSm,
+          color: T.muted, fontFamily: T.mono, fontSize: 10, fontWeight: 600,
+          letterSpacing: '0.06em', textTransform: 'uppercase',
+          padding: '3px 8px', cursor: 'pointer', userSelect: 'none',
+        }}
+      >
+        Import
+        <input ref={importRef} type="file" accept=".json" onChange={handleImportFile} style={{ display: 'none' }} />
+      </label>
+
       {/* Separator */}
       <div style={{ width: 1, height: 18, background: T.border }} />
 
       {/* Shutdown button — two-step confirm */}
-      <button
+      <Btn
+        variant={shutdownArmed ? 'danger' : 'ghost'}
+        size="sm"
         onClick={handleShutdown}
         title={shutdownArmed ? 'Click again to confirm shutdown' : 'Shut down the lites server'}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 6,
-          padding: '5px 14px',
-          borderRadius: T.radiusSm,
-          border: `1px solid ${shutdownArmed ? T.danger : T.border2}`,
-          background: shutdownArmed ? 'rgba(229,57,53,0.15)' : 'transparent',
-          color: shutdownArmed ? '#ff6b6b' : T.dim,
-          fontFamily: T.mono,
-          fontWeight: 600,
-          fontSize: 11,
-          letterSpacing: '0.08em',
-          textTransform: 'uppercase',
-          cursor: 'pointer',
-          transition: 'all 0.12s ease',
-        }}
       >
         <span style={{ fontSize: 13, lineHeight: 1 }}>⏻</span>
         {shutdownArmed ? 'Confirm?' : 'Off'}
-      </button>
+      </Btn>
     </header>
   );
 }

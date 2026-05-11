@@ -32,6 +32,14 @@ export interface FixturePosition {
   y: number;
 }
 
+// ── Groups ────────────────────────────────────────────────────────────────────
+
+export interface Group {
+  id: string;
+  name: string;
+  fixtureIds: string[];
+}
+
 // ── Presets ───────────────────────────────────────────────────────────────────
 
 export interface Preset {
@@ -84,7 +92,7 @@ export interface Cue {
   /** fixtureId → params for this cue (captured from live state when recorded) */
   values: Record<string, Partial<FixtureParams>>;
   fadeIn: number;   // seconds
-  fadeOut: number;  // seconds (not yet used in v1, reserved)
+  fadeOut: number;  // seconds
   followMode: FollowMode;
   followTime?: number; // seconds, for 'follow' and 'auto' modes
 }
@@ -98,6 +106,7 @@ export interface Cuelist {
 export interface CuelistPlayback {
   activeCueId: string | null;
   playing: boolean;
+  fadingOutCueId?: string | null; // cue currently fading out
 }
 
 // ── Simple Performer Page ─────────────────────────────────────────────────────
@@ -114,6 +123,7 @@ export interface SimpleTile {
   // Type-specific payload (only the relevant field is used):
   presetId?: string;                                    // type=preset
   cuelistId?: string;                                   // type=cuelistGo
+  fixtureIds?: string[];                                // type=flash
   sceneValues?: Record<string, Partial<FixtureParams>>; // type=scene
 }
 
@@ -124,9 +134,74 @@ export interface SimplePageConfig {
   tiles: SimpleTile[];
 }
 
+// ── DMX Output Drivers ────────────────────────────────────────────────────────
+
+export type OutputDriverType = 'enttec-usb' | 'artnet' | 'sacn' | 'null';
+
+export interface OutputDriverConfig {
+  driver: OutputDriverType;
+  serialPort?: string;
+  artnetIp?: string;
+  artnetUniverse?: number;
+  sacnUniverse?: number;
+}
+
+// ── MIDI ──────────────────────────────────────────────────────────────────────
+
+export type MidiTargetType = 'fixtureParam' | 'preset' | 'blackout' | 'cueGo' | 'masterDimmer';
+
+export interface MidiTarget {
+  type: MidiTargetType;
+  fixtureId?: string;
+  param?: string;
+  presetId?: string;
+  cuelistId?: string;
+}
+
+export interface MidiMapping {
+  id: string;
+  label: string;
+  source: 'note' | 'cc';
+  channel: number; // 0–15
+  number: number;  // 0–127 (CC number or note number)
+  target: MidiTarget;
+}
+
+// ── OSC ───────────────────────────────────────────────────────────────────────
+
+export interface OscConfig {
+  enabled: boolean;
+  port: number; // default 8000
+}
+
+// ── Timelines ─────────────────────────────────────────────────────────────────
+
+export interface TimelineEvent {
+  id: string;
+  time: number;     // ms from timeline start
+  fixtureId: string;
+  param: string;
+  value: number;    // 0–255
+  fadeIn: number;   // ms ramp-in duration
+}
+
+export interface Timeline {
+  id: string;
+  name: string;
+  duration: number; // ms
+  events: TimelineEvent[];
+  loop: boolean;
+}
+
+export interface TimelinePlayback {
+  playing: boolean;
+  position: number; // ms
+}
+
 // ── Show state ────────────────────────────────────────────────────────────────
 
 export interface ShowState {
+  schemaVersion: number;
   profiles: Record<string, Profile>;
   fixtures: Record<string, FixtureDef>;
   fixtureParams: Record<string, FixtureParams>;
@@ -134,6 +209,7 @@ export interface ShowState {
   blackout: boolean;
   /** Grand master dimmer: 0–255, scales all physical DMX dimmer output. Default 255 (full). */
   masterDimmer: number;
+  groups: Record<string, Group>;
   presets: Record<string, Preset>;
   /** Built-in effect templates (read-only, not persisted) */
   effectTemplates: EffectTemplate[];
@@ -144,6 +220,16 @@ export interface ShowState {
   cuelistPlayback: Record<string, CuelistPlayback>;
   /** Performer page configuration (persisted) */
   simplePageConfig: SimplePageConfig;
+  /** MIDI input mappings (persisted) */
+  midiMappings: MidiMapping[];
+  /** Timelines / programmer sequences (persisted) */
+  timelines: Record<string, Timeline>;
+  /** Ephemeral timeline playback state */
+  timelinePlayback: Record<string, TimelinePlayback>;
+  /** Output driver config (persisted) */
+  outputDriverConfig: OutputDriverConfig;
+  /** OSC input config (persisted) */
+  oscConfig: OscConfig;
 }
 
 // ── Client → Server messages ──────────────────────────────────────────────────
@@ -203,9 +289,33 @@ export interface AddProfileMsg {
   params: Record<string, number>;
 }
 
+export interface UpdateProfileMsg {
+  type: 'updateProfile';
+  profileId: string;
+  changes: { name?: string; channelCount?: number; params?: Record<string, number> };
+}
+
 export interface DeleteProfileMsg {
   type: 'deleteProfile';
   profileId: string;
+}
+
+// Groups
+export interface AddGroupMsg {
+  type: 'addGroup';
+  name: string;
+  fixtureIds: string[];
+}
+
+export interface UpdateGroupMsg {
+  type: 'updateGroup';
+  groupId: string;
+  changes: { name?: string; fixtureIds?: string[] };
+}
+
+export interface DeleteGroupMsg {
+  type: 'deleteGroup';
+  groupId: string;
 }
 
 // Presets
@@ -357,6 +467,125 @@ export interface UpdateSimplePageMsg {
   config: SimplePageConfig;
 }
 
+// Output driver
+export interface SetOutputDriverMsg {
+  type: 'setOutputDriver';
+  config: OutputDriverConfig;
+}
+
+export interface GetOutputDriverMsg {
+  type: 'getOutputDriver';
+}
+
+// MIDI
+export interface ListMidiPortsMsg {
+  type: 'listMidiPorts';
+}
+
+export interface SetMidiPortMsg {
+  type: 'setMidiPort';
+  port: string | null;
+}
+
+export interface AddMidiMappingMsg {
+  type: 'addMidiMapping';
+  label: string;
+  source: 'note' | 'cc';
+  channel: number;
+  number: number;
+  target: MidiTarget;
+}
+
+export interface UpdateMidiMappingMsg {
+  type: 'updateMidiMapping';
+  mappingId: string;
+  changes: Partial<Omit<MidiMapping, 'id'>>;
+}
+
+export interface DeleteMidiMappingMsg {
+  type: 'deleteMidiMapping';
+  mappingId: string;
+}
+
+export interface MidiLearnStartMsg {
+  type: 'midiLearnStart';
+  mappingId: string; // which mapping slot to update
+}
+
+export interface MidiLearnStopMsg {
+  type: 'midiLearnStop';
+}
+
+// OSC
+export interface SetOscConfigMsg {
+  type: 'setOscConfig';
+  config: OscConfig;
+}
+
+// Timelines
+export interface AddTimelineMsg {
+  type: 'addTimeline';
+  name: string;
+  duration: number;
+  loop?: boolean;
+}
+
+export interface DeleteTimelineMsg {
+  type: 'deleteTimeline';
+  timelineId: string;
+}
+
+export interface UpdateTimelineMsg {
+  type: 'updateTimeline';
+  timelineId: string;
+  changes: { name?: string; duration?: number; loop?: boolean };
+}
+
+export interface AddTimelineEventMsg {
+  type: 'addTimelineEvent';
+  timelineId: string;
+  event: Omit<TimelineEvent, 'id'>;
+}
+
+export interface UpdateTimelineEventMsg {
+  type: 'updateTimelineEvent';
+  timelineId: string;
+  eventId: string;
+  changes: Partial<Omit<TimelineEvent, 'id'>>;
+}
+
+export interface DeleteTimelineEventMsg {
+  type: 'deleteTimelineEvent';
+  timelineId: string;
+  eventId: string;
+}
+
+export interface TimelineGoMsg {
+  type: 'timelineGo';
+  timelineId: string;
+}
+
+export interface TimelineStopMsg {
+  type: 'timelineStop';
+  timelineId: string;
+}
+
+export interface TimelineJumpMsg {
+  type: 'timelineJump';
+  timelineId: string;
+  positionMs: number;
+}
+
+// Export / Import
+export interface ExportShowMsg {
+  type: 'exportShow';
+}
+
+export interface ImportShowMsg {
+  type: 'importShow';
+  data: Partial<ShowState>;
+}
+
 export type ClientMessage =
   | GetStateMsg
   | SetFixtureMsg
@@ -367,7 +596,11 @@ export type ClientMessage =
   | UpdateFixtureMsg
   | DeleteFixtureMsg
   | AddProfileMsg
+  | UpdateProfileMsg
   | DeleteProfileMsg
+  | AddGroupMsg
+  | UpdateGroupMsg
+  | DeleteGroupMsg
   | SavePresetMsg
   | RecallPresetMsg
   | DeletePresetMsg
@@ -387,7 +620,28 @@ export type ClientMessage =
   | CuelistStopMsg
   | JumpToCueMsg
   | FlashMsg
-  | UpdateSimplePageMsg;
+  | UpdateSimplePageMsg
+  | SetOutputDriverMsg
+  | GetOutputDriverMsg
+  | ListMidiPortsMsg
+  | SetMidiPortMsg
+  | AddMidiMappingMsg
+  | UpdateMidiMappingMsg
+  | DeleteMidiMappingMsg
+  | MidiLearnStartMsg
+  | MidiLearnStopMsg
+  | SetOscConfigMsg
+  | AddTimelineMsg
+  | DeleteTimelineMsg
+  | UpdateTimelineMsg
+  | AddTimelineEventMsg
+  | UpdateTimelineEventMsg
+  | DeleteTimelineEventMsg
+  | TimelineGoMsg
+  | TimelineStopMsg
+  | TimelineJumpMsg
+  | ExportShowMsg
+  | ImportShowMsg;
 
 // ── Server → Client messages ──────────────────────────────────────────────────
 
@@ -441,6 +695,49 @@ export interface SimplePageUpdateMsg {
   config: SimplePageConfig;
 }
 
+export interface GroupsUpdateMsg {
+  type: 'groupsUpdate';
+  groups: Record<string, Group>;
+}
+
+export interface OutputDriverUpdateMsg {
+  type: 'outputDriverUpdate';
+  config: OutputDriverConfig;
+  driverStatus: 'connected' | 'disconnected' | 'error';
+}
+
+export interface MidiPortsUpdateMsg {
+  type: 'midiPortsUpdate';
+  ports: string[];
+  activePort: string | null;
+}
+
+export interface MidiMappingsUpdateMsg {
+  type: 'midiMappingsUpdate';
+  mappings: MidiMapping[];
+}
+
+export interface MidiLearnUpdateMsg {
+  type: 'midiLearnUpdate';
+  mappingId: string | null; // null = learn mode off
+}
+
+export interface OscConfigUpdateMsg {
+  type: 'oscConfigUpdate';
+  config: OscConfig;
+}
+
+export interface TimelinesUpdateMsg {
+  type: 'timelinesUpdate';
+  timelines: Record<string, Timeline>;
+  playback: Record<string, TimelinePlayback>;
+}
+
+export interface ShowExportMsg {
+  type: 'showExport';
+  data: ShowState;
+}
+
 export type ServerMessage =
   | StateMsg
   | DmxUpdateMsg
@@ -449,4 +746,12 @@ export type ServerMessage =
   | PresetsUpdateMsg
   | EffectsUpdateMsg
   | CuelistsUpdateMsg
-  | SimplePageUpdateMsg;
+  | SimplePageUpdateMsg
+  | GroupsUpdateMsg
+  | OutputDriverUpdateMsg
+  | MidiPortsUpdateMsg
+  | MidiMappingsUpdateMsg
+  | MidiLearnUpdateMsg
+  | OscConfigUpdateMsg
+  | TimelinesUpdateMsg
+  | ShowExportMsg;

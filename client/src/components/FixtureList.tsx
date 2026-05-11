@@ -5,6 +5,7 @@
  */
 import React from 'react';
 import { T } from '../theme.js';
+import { Label } from '../ui.js';
 import { useShowStore } from '../store/useShowStore.js';
 import type { useWebSocket } from '../ws/useWebSocket.js';
 import { useMemo } from 'react';
@@ -17,10 +18,15 @@ export default function FixtureList({ ws: _ws }: Props) {
   const fixtures = useShowStore((s) => s.fixtures);
   const fixtureParams = useShowStore((s) => s.fixtureParams);
   const profiles = useShowStore((s) => s.profiles);
+  const groups = useShowStore((s) => s.groups);
   const selectedIds = useShowStore((s) => s.selectedFixtureIds);
+  const selectedGroupId = useShowStore((s) => s.selectedGroupId);
   const setSelected = useShowStore((s) => s.setSelectedFixture);
   const toggleSelected = useShowStore((s) => s.toggleFixtureSelection);
+  const selectGroup = useShowStore((s) => s.selectGroup);
   const blackout = useShowStore((s) => s.blackout);
+
+  const sortedGroups = useMemo(() => Object.values(groups).sort((a, b) => a.name.localeCompare(b.name)), [groups]);
 
   const ids = useMemo(() => Object.keys(fixtures), [fixtures]);
 
@@ -44,19 +50,33 @@ export default function FixtureList({ ws: _ws }: Props) {
           flexShrink: 0,
         }}
       >
-        <span
-          style={{
-            fontFamily: T.mono,
-            fontSize: 9,
-            fontWeight: 600,
-            letterSpacing: '0.18em',
-            color: T.dim,
-            textTransform: 'uppercase',
-          }}
-        >
-          Fixtures
-        </span>
+        <Label style={{ marginBottom: 0 }}>Fixtures</Label>
       </div>
+
+      {/* Groups */}
+      {sortedGroups.length > 0 && (
+        <div style={{ borderBottom: `1px solid ${T.border}`, flexShrink: 0 }}>
+          <Label style={{ padding: '4px 14px 2px', marginBottom: 0 }}>Groups</Label>
+          {sortedGroups.map((g) => (
+            <div
+              key={g.id}
+              onClick={() => selectGroup(selectedGroupId === g.id ? null : g.id)}
+              style={{
+                padding: '5px 14px',
+                cursor: 'pointer',
+                borderLeft: `2px solid ${selectedGroupId === g.id ? T.accent : 'transparent'}`,
+                background: selectedGroupId === g.id ? T.surface2 : 'transparent',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
+              <span style={{ fontSize: 12, color: selectedGroupId === g.id ? T.text : T.muted }}>{g.name}</span>
+              <span style={{ fontFamily: T.mono, fontSize: 10, color: T.dim }}>{g.fixtureIds.length}</span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Fixture rows */}
       <div style={{ flex: 1, overflowY: 'auto' }}>

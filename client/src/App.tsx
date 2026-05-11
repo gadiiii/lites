@@ -5,12 +5,12 @@ import NavTabs, { type View } from './components/NavTabs.js';
 import StageView from './components/StageView.js';
 import FixtureList from './components/FixtureList.js';
 import BottomPanel from './components/BottomPanel.js';
-import PatchPage from './components/PatchPage.js';
 import PresetsPage from './components/PresetsPage.js';
-import EffectsPage from './components/EffectsPage.js';
-import CuelistsPage from './components/CuelistsPage.js';
+import ShowPage from './components/ShowPage.js';
+import SettingsPage from './components/SettingsPage.js';
 import SimplePageAdmin from './components/SimplePageAdmin.js';
 import LoginPage from './components/LoginPage.js';
+import { useKeyboardShortcuts } from './ws/useKeyboardShortcuts.js';
 import { T } from './theme.js';
 
 type AuthState = 'checking' | 'login' | 'ok';
@@ -19,6 +19,7 @@ export default function App() {
   const [authState, setAuthState] = useState<AuthState>('checking');
   const ws = useWebSocket();
   const [activeView, setActiveView] = useState<View>('live');
+  useKeyboardShortcuts(ws.send, activeView);
 
   // On mount: check whether auth is required and if stored token is valid
   useEffect(() => {
@@ -85,31 +86,25 @@ export default function App() {
         </>
       )}
 
-      {activeView === 'patch' && (
-        <div style={{ flex: 1, overflow: 'hidden' }}>
-          <PatchPage ws={ws} />
-        </div>
-      )}
-
       {activeView === 'presets' && (
         <div style={{ flex: 1, overflow: 'hidden' }}>
           <PresetsPage ws={ws} />
         </div>
       )}
 
-      {activeView === 'effects' && (
+      {activeView === 'show' && (
         <div style={{ flex: 1, overflow: 'hidden' }}>
-          <EffectsPage ws={ws} />
+          <ShowPage ws={ws} />
         </div>
       )}
 
-      {activeView === 'cuelists' && (
+      {activeView === 'settings' && (
         <div style={{ flex: 1, overflow: 'hidden' }}>
-          <CuelistsPage ws={ws} />
+          <SettingsPage ws={ws} />
         </div>
       )}
 
-      {activeView === 'simple' && (
+      {activeView === 'performer' && (
         <div style={{ flex: 1, overflow: 'hidden' }}>
           <SimplePageAdmin ws={ws} />
         </div>

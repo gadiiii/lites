@@ -1,4 +1,5 @@
 import path from 'path';
+import type { OutputDriverType } from '@lites/shared';
 
 export interface Config {
   serialPort: string;
@@ -6,6 +7,11 @@ export interface Config {
   wsPort: number;
   showFilePath: string;
   adminPassword: string | null;
+  outputDriver: OutputDriverType;
+  artnetIp: string;
+  artnetUniverse: number;
+  sacnUniverse: number;
+  oscPort: number;
 }
 
 function getEnv(key: string, fallback: string): string {
@@ -43,14 +49,18 @@ function loadDotEnv(): void {
 
 loadDotEnv();
 
+const rawDriver = getEnv('OUTPUT_DRIVER', 'enttec-usb');
+const validDrivers: OutputDriverType[] = ['enttec-usb', 'artnet', 'sacn', 'null'];
+
 export const config: Config = {
-  serialPort: getEnv('SERIAL_PORT', '/dev/ttyUSB0'),
-  dmxFps: getEnvInt('DMX_FPS', 40),
-  wsPort: getEnvInt('WS_PORT', 3000),
-  showFilePath: path.resolve(
-    process.cwd(),
-    getEnv('SHOW_FILE', '../data/show.json')
-  ),
-  // Set ADMIN_PASSWORD in .env to enable auth; leave blank/unset for open access (dev)
-  adminPassword: process.env['ADMIN_PASSWORD'] || null,
+  serialPort:     getEnv('SERIAL_PORT', '/dev/ttyUSB0'),
+  dmxFps:         getEnvInt('DMX_FPS', 40),
+  wsPort:         getEnvInt('WS_PORT', 3000),
+  showFilePath:   path.resolve(process.cwd(), getEnv('SHOW_FILE', '../data/show.json')),
+  adminPassword:  process.env['ADMIN_PASSWORD'] || null,
+  outputDriver:   (validDrivers.includes(rawDriver as OutputDriverType) ? rawDriver : 'enttec-usb') as OutputDriverType,
+  artnetIp:       getEnv('ARTNET_IP', '255.255.255.255'),
+  artnetUniverse: getEnvInt('ARTNET_UNIVERSE', 0),
+  sacnUniverse:   getEnvInt('SACN_UNIVERSE', 1),
+  oscPort:        getEnvInt('OSC_PORT', 8000),
 };

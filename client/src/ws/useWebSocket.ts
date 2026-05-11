@@ -25,6 +25,11 @@ function buildWsUrl(): string {
 const BASE_RECONNECT_MS = 500;
 const MAX_RECONNECT_MS = 10_000;
 
+/** Emit a browser-level event so components can listen for exported show data. */
+function emitShowExport(data: unknown) {
+  window.dispatchEvent(new CustomEvent('lites:showExport', { detail: data }));
+}
+
 export function useWebSocket() {
   const ws = useRef<WebSocket | null>(null);
   const reconnectDelay = useRef(BASE_RECONNECT_MS);
@@ -40,6 +45,13 @@ export function useWebSocket() {
     applyEffectsUpdate,
     applyCuelistsUpdate,
     applySimplePageUpdate,
+    applyGroupsUpdate,
+    applyMidiMappingsUpdate,
+    applyMidiPortsUpdate,
+    applyMidiLearnUpdate,
+    applyOscConfigUpdate,
+    applyOutputDriverUpdate,
+    applyTimelinesUpdate,
     setConnected,
   } = useShowStore.getState();
 
@@ -73,11 +85,50 @@ export function useWebSocket() {
       case 'simplePageUpdate':
         applySimplePageUpdate(msg.config as SimplePageConfig);
         break;
+      case 'groupsUpdate':
+        applyGroupsUpdate(msg.groups);
+        break;
+      case 'midiMappingsUpdate':
+        applyMidiMappingsUpdate(msg.mappings);
+        break;
+      case 'midiPortsUpdate':
+        applyMidiPortsUpdate(msg.ports, msg.activePort);
+        break;
+      case 'midiLearnUpdate':
+        applyMidiLearnUpdate(msg.mappingId);
+        break;
+      case 'oscConfigUpdate':
+        applyOscConfigUpdate(msg.config);
+        break;
+      case 'outputDriverUpdate':
+        applyOutputDriverUpdate(msg.config, msg.driverStatus as 'connected' | 'error' | 'disconnected');
+        break;
+      case 'timelinesUpdate':
+        applyTimelinesUpdate(msg.timelines, msg.playback);
+        break;
+      case 'showExport':
+        emitShowExport(msg.data);
+        break;
       case 'error':
         console.warn('[WS] Server error:', msg.code, msg.message);
         break;
     }
-  }, [hydrate, applyDmxUpdate, applyPatchUpdate, applyPresetsUpdate, applyEffectsUpdate, applyCuelistsUpdate, applySimplePageUpdate]);
+  }, [
+    hydrate,
+    applyDmxUpdate,
+    applyPatchUpdate,
+    applyPresetsUpdate,
+    applyEffectsUpdate,
+    applyCuelistsUpdate,
+    applySimplePageUpdate,
+    applyGroupsUpdate,
+    applyMidiMappingsUpdate,
+    applyMidiPortsUpdate,
+    applyMidiLearnUpdate,
+    applyOscConfigUpdate,
+    applyOutputDriverUpdate,
+    applyTimelinesUpdate,
+  ]);
 
   const connect = useCallback(() => {
     if (reconnectTimer.current) {

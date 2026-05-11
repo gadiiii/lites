@@ -11,6 +11,8 @@
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import type { ServerMessage, SimplePageConfig, SimpleTile } from './types.js';
+import { T } from './theme.js';
+import { Badge } from './ui.js';
 
 // ── Build WS URL with simple role ─────────────────────────────────────────────
 
@@ -101,19 +103,27 @@ export default function SimplePage() {
         send({ type: 'setBlackout', active: !blackout });
         break;
       case 'scene':
-        break; // scene tiles not yet implemented
+        if (tile.sceneValues) {
+          for (const [fixtureId, params] of Object.entries(tile.sceneValues)) {
+            send({ type: 'setFixture', fixtureId, params });
+          }
+        }
+        break;
+      case 'flash':
+        // flash is handled via pointer events; onTap is not used for flash
+        break;
     }
   }, [send, blackout]);
 
   const sorted = [...config.tiles].sort((a, b) => a.order - b.order);
 
-  const statusColor = status === 'connected' ? '#4caf50' : status === 'connecting' ? '#ff9800' : '#f44336';
+  const statusColor = status === 'connected' ? T.success : status === 'connecting' ? T.accent : T.danger;
 
   return (
     <div style={{
       width: '100%',
       height: '100%',
-      background: '#0d0d0d',
+      background: T.bg,
       display: 'flex',
       flexDirection: 'column',
       fontFamily: 'system-ui, -apple-system, sans-serif',
@@ -127,18 +137,14 @@ export default function SimplePage() {
         alignItems: 'center',
         justifyContent: 'space-between',
         padding: '12px 16px',
-        borderBottom: '1px solid #222',
+        borderBottom: `1px solid ${T.border}`,
         flexShrink: 0,
       }}>
-        <span style={{ fontWeight: 700, fontSize: 15, color: '#e8e8e8', letterSpacing: '-0.01em' }}>
+        <span style={{ fontWeight: 700, fontSize: 15, color: T.text, letterSpacing: '-0.01em' }}>
           {config.title}
         </span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          {blackout && (
-            <span style={{ fontSize: 10, color: '#f44336', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
-              BLACKOUT
-            </span>
-          )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {blackout && <Badge variant="danger">Blackout</Badge>}
           <div style={{ width: 8, height: 8, borderRadius: '50%', background: statusColor }} />
         </div>
       </div>
@@ -156,12 +162,12 @@ export default function SimplePage() {
         {sorted.length === 0 ? (
           <div style={{
             gridColumn: `1 / -1`,
-            color: '#444',
+            color: T.dim,
             fontSize: 14,
             textAlign: 'center',
             marginTop: 60,
           }}>
-            No tiles configured yet.{'\n'}Ask the admin to set up the Simple Page.
+            No tiles configured yet.{'\n'}Ask the admin to set up the Performer view.
           </div>
         ) : (
           sorted.map((tile) => (
@@ -170,8 +176,8 @@ export default function SimplePage() {
               tile={tile}
               blackout={blackout}
               onTap={() => handleTile(tile)}
-              onFlashDown={() => send({ type: 'flash', fixtureIds: [], active: true })}
-              onFlashUp={() => send({ type: 'flash', fixtureIds: [], active: false })}
+              onFlashDown={() => send({ type: 'flash', fixtureIds: tile.fixtureIds ?? [], active: true })}
+              onFlashUp={() => send({ type: 'flash', fixtureIds: tile.fixtureIds ?? [], active: false })}
             />
           ))
         )}
@@ -224,7 +230,7 @@ function SimpleTileButton({ tile, blackout, onTap, onFlashDown, onFlashUp }: Til
       onPointerLeave={() => { if (isFlash && pressed) { setPressed(false); onFlashUp(); } }}
       style={{
         aspectRatio: '1',
-        background: isBlackout && blackout ? '#f44336' : bg,
+        background: isBlackout && blackout ? T.danger : bg,
         border: 'none',
         borderRadius: 14,
         display: 'flex',
@@ -243,7 +249,7 @@ function SimpleTileButton({ tile, blackout, onTap, onFlashDown, onFlashUp }: Til
         <span style={{ fontSize: 26, lineHeight: 1, marginBottom: 4 }}>{icon}</span>
       )}
       <span style={{
-        fontSize: 13,
+        fontSize: 15,
         fontWeight: 700,
         color: '#fff',
         textAlign: 'center',

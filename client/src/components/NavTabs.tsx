@@ -1,7 +1,7 @@
 import React from 'react';
 import { T } from '../theme.js';
 
-export type View = 'live' | 'patch' | 'presets' | 'effects' | 'cuelists' | 'simple';
+export type View = 'live' | 'presets' | 'show' | 'settings' | 'performer';
 
 interface NavTabsProps {
   activeView: View;
@@ -9,12 +9,11 @@ interface NavTabsProps {
 }
 
 const TABS: { id: View; label: string }[] = [
-  { id: 'live',     label: 'Live' },
-  { id: 'patch',    label: 'Patch' },
-  { id: 'presets',  label: 'Presets' },
-  { id: 'effects',  label: 'Effects' },
-  { id: 'cuelists', label: 'Cuelists' },
-  { id: 'simple',   label: 'Simple Page' },
+  { id: 'live',      label: 'Live'      },
+  { id: 'presets',   label: 'Presets'   },
+  { id: 'show',      label: 'Show'      },
+  { id: 'settings',  label: 'Settings'  },
+  { id: 'performer', label: 'Performer' },
 ];
 
 export default function NavTabs({ activeView, onNavigate }: NavTabsProps) {
@@ -24,7 +23,7 @@ export default function NavTabs({ activeView, onNavigate }: NavTabsProps) {
         display: 'flex',
         flexDirection: 'row',
         alignItems: 'stretch',
-        height: 36,
+        height: T.navH,
         background: T.surface,
         borderBottom: `1px solid ${T.border}`,
         flexShrink: 0,
@@ -42,7 +41,7 @@ export default function NavTabs({ activeView, onNavigate }: NavTabsProps) {
               background: 'none',
               border: 'none',
               borderBottom: active ? `2px solid ${T.accent}` : '2px solid transparent',
-              color: active ? T.text : T.muted,
+              color: active ? T.textSub : T.muted,
               fontFamily: T.font,
               fontSize: 12,
               fontWeight: active ? 600 : 400,
